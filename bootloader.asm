@@ -46,10 +46,6 @@ nop                               ; bootloader. Como a imagem gerada está em
 ;
 ;                                Memória RAM
 ;
-;                         │                        │
-;                         │          Free          │
-;                         │                        │
-;                         │────────────────────────│
 ;                         │                        │ 
 ;                         │       Bootloader       │
 ;                         │                        │
@@ -70,9 +66,9 @@ nop                               ; bootloader. Como a imagem gerada está em
 ;
 ; Teoricamente, a pilha poderia crescer até sobrescrever a BIOS Data Area (BDA)
 ; e a Interrupt Vector Table (IVT), o que causaria a falha do sistema (Stack  
-; corruption). Mas a área livre pretendida para a pilha ocupar, com cerca de 
-; 30KB, é muitas vezes maior que o estimado que o bootloader vai utilizar. Assim,
-; a não ser que se escreva no meio do código algo como:
+; corruption). Mas a área livre pretendida para ela ocupar, com cerca de 30KB,
+; é muitas vezes maior que o estimado que o bootloader vai utilizar. Assim, a
+; não ser que se escreva no meio do código algo como:
 ;
 ;
 ;     mov eax, 0x10    (Grava o valor 0x10 em EAX)
@@ -288,7 +284,7 @@ set_vga_text_mode:
 ;
 ;
 ; Carrega a imagem do kernel na memória. O binário do kernel inicia no segundo 
-; setor do disco e ocupa um total de 10 setores (5120 bytes).
+; setor do disco de boot e ocupa um total de 10 setores (5120 bytes).
 ;
 ; O kernel será carregado a partir do endereço 0x7E00, logo adiante do bootloader.
 ; No diagrama abaixo vemos como fica a memória baixa do computador após ele ser 
@@ -540,7 +536,7 @@ load_kernel_image:
 								  ; 2. Lê o kernel e carrega na memória:
 
     mov ah, 0x02                  ; Define o valor 0x02 em AH (função Read Sectors 
-	                              ; From Drive            
+	                              ; From Drive)            
 	
     mov dl, [drive_number]        ; Lê o número do drive onde está o binário do
 	                              ; kernel e coloca em DL.
@@ -632,11 +628,11 @@ load_kernel_image:
 ; Essa é uma etapa fundamental do boot, pois enquanto o processador está rodando
 ; em Modo Real, possui limitações severas de endereçamento (~1 MB sem extensões 
 ; como A20). O kernel precisará acessar memória que está acima de 1 MB, para configurar
-; a pilha e acessar hardware MMIO. A mudança para Modo Protegido é necessária para
-; isso.
+; a pilha e acessar hardware MMIO. A mudança para o Modo Protegido é necessária
+; principalmente para isso.
 ;
-; O segmento de código em Modo Protegido foi configurado como 32-bit (D = 1), 
-; fazendo com que as instruções usem operandos de 32 bits por padrão(configuramos 
+; O segmento de código do kernel em Modo Protegido foi configurado como 32-bit, 
+; fazendo com que as instruções usem operandos de 32 bits por padrão (configuramos 
 ; isso na GDT). Dessa forma, precisamos fazer um Far Jump ao entregar o controle
 ; do programa para o kernel, para limpar do pipeline as instruções de 16 bits do
 ; bootloader e redefinir o registrador de segmento de código (CS) e o ponteiro 
@@ -712,19 +708,22 @@ load_kernel_image:
 ;
 ; Detalhamento da operação:
 ;
-; A GDT está configurada de tal forma que a base do segmento de código será no
-; início da memória (0x00000000) e o limite será 4GB (0xFFFFFFFF), com granularidade
-; de 4KB.
+; A GDT está configurada em Flat Memory Model, em que a base do segmento de código 
+; do kernel será no início da memória (0x00000000) e o limite será 4GB (0xFFFFFFFF), 
+; com granularidade de 4KB. Isto faz com que o segmento de código abranja toda a 
+; memória endereçável em Modo Protegido, permitindo o acesso à memória de forma
+; linear.
 ;
 ; Ao executar a instrução Far Jump em modo protegido:
 ;
 ;                            jmp 0x08:kernel_entry
 ;
-; passamos o seletor do segmento de código (0x08) e o endereço do ponto de entrada 
-; do kernel (kernel_entry). Com base nestes parâmetros, o CPU atualiza o registrador 
-; de segmento CS e o offset do registrador de instrução EIP, que vai apontar para 
-; o endereço de kernel_entry. Então, quando o controle do programa passar para o 
-; kernel, as primeiras instruções executadas serão as que estão em kernel_entry.
+; passamos o seletor do Descritor do Segmento de Código do Kernel (0x08) e o 
+; endereço do ponto de entrada do kernel (kernel_entry). Com base nestes parâmetros, 
+; o CPU atualiza o registrador de segmento CS e calcula o offset do registrador 
+; de instrução EIP, que vai apontar para o endereço de kernel_entry. Então, quando
+; o controle do programa passar para o kernel, as primeiras instruções executadas 
+; pelo CPU serão as que estão no endereço de kernel_entry.
 ;
 ; Como os 32 bytes da assinatura do kernel estão em endereços anteriores a 
 ; kernel_entry, e EIP aponta para kernel_entry, apenas as instruções a partir 
@@ -762,10 +761,11 @@ enter_pmode_and_jump:
 	
     jmp 0x08:kernel_entry         ; Executa um Far Jump (salto longo) para passar
 	                              ; o controle do programa para o kernel. O seletor
-								  ; 0x08 aponta para o segmento de código na GDT, e
-								  ; kernel_entry para o offset do ponto de entrada
-								  ; do kernel, onde o ponteiro de instrução (EIP)
-								  ; será posicionado para a execução das instruções.
+								  ; 0x08 aponta para o Descritor do Segmento de
+								  ; Código do Kernel na GDT, e kernel_entry para
+								  ; o endereço do ponto de entrada do kernel, onde 
+								  ; o ponteiro de instrução (EIP) será posicionado 
+								  ; para a CPU começar a execução das instruções.
 			
 			
 						
@@ -1297,7 +1297,7 @@ print_string:
 ; Neste projeto definimos a GDT em Flat Memory Model (modelo plano). O Flat Model 
 ; é uma forma simplificada de usar a GDT em que:
 ;
-;   > Todos os segmentos têm base = 0x0000000000000000.
+;   > Todos os segmentos têm base = 0x00000000.
 ;
 ;   > O limite cobre toda a memória endereçável em Modo Protegido (≈ 4GB).
 ;
@@ -1653,7 +1653,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ;                               ┌───────────────────────────────────────┐
-;                               │                Opcode                 │
+;                               │              Opcode(s)                │
 ;    ┌──────────────────────────┼───────────────────┬───────────────────┤
 ;    │ Assembly                 │ Hexadecimal       │ Binário           │         
 ;    ╞══════════════════════════╪═══════════════════╪═══════════════════╡
