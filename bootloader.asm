@@ -1647,9 +1647,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; no hardware, com a reconfiguração de cabos e chaves, e não pela escrita de um 
 ; arquivo em disco.
 ;
-; Para deixar ainda mais claro os conceitos abordados, acompanhe na tabela abaixo
-; como o montador NASM traduz as primeiras instruções deste código-fonte em assembly 
-; em seus respectivos opcodes em linguagem de máquina, e compare com :
+; A tabela abaixo mostra como o montador NASM traduz as primeiras instruções deste
+; código-fonte em assembly em seus respectivos opcodes em linguagem de máquina:
 ;
 ;
 ;                               ┌───────────────────────────────────────┐
@@ -1689,24 +1688,56 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    * Observe que o código assembly para NASM contém algumas pseudo-instruções
 ;      que não geram upcodes para o processador. A label start:, apenas demarca
 ;      o offset de uma instrução (cli), servindo como uma espécie de bandeira no
-;      código, que o montador converterá num endereço. Outras pseudo-instruções
-;      que aparecem no código são: times, db, dw, dd, dq. Todas elas não geram
-;      instruções de máquina, apenas instruem o montador a gravar bytes no binário, 
+;      código, que o montador converterá num endereço ou deslocamento, dependendo
+;      da instrução que a utiliza (jmp short transforma em deslocamento). Outras 
+;      pseudo-instruções que aparecem no código são: times, db, dw, dd, dq. Todas 
+;      elas não geram opcodes, apenas instruem o montador a gravar bytes no binário, 
 ;      no sentido de alocar espaço com alguma função (servir como "variável" ou
-;      inflar o arquivo).
+;      para inflar o arquivo).
 ;
 ;
-; As intruções na tabela correspondem à rotina "start:" que grava o número do drive 
-; de boot na variável drive_number na memória, configura os registradores de segmento 
-; e a pilha do bootloader.
+; Se comparar os bytes dos upcodes na tabela, em hexadecimal, com os primeiros
+; bytes do arquivo binário mostrados acima, verá que são os mesmos, pois a ordem
+; das instruções do assembly é mantida rigorosamente pelo montador. 
 ;
-; Traduzindo para a linguagem de máquina a sequência de instruções da tabela, temos:
+; As intruções na tabela correspondem ao código de alinhamento e à rotina "start:" 
+; no assembly, que grava o número do drive de boot na variável drive_number na 
+; memória, configura os registradores de segmento e a pilha do bootloader.
 ;
-; 
-;   11101011 00000001 10010000 11111010 10001000 00010110 11101111 01111100
-;   00110001 11000000 10001110 11011000 10001110 11000000 10001110 11100000
-;   10001110 11101000 10001110 11010000 10111100 00000000 01111100 11111011
+; Agora ficou bem mais fácil construir a tabela da rotina seguinte (set_vga_text_mode), 
+; que configura o modo de texto VGA 3H:
 ;
+;
+;                               ┌───────────────────────────────────────┐
+;                               │              Opcode(s)                │
+;    ┌──────────────────────────┼───────────────────┬───────────────────┤
+;    │ Assembly                 │ Hexadecimal       │ Binário           │         
+;    ╞══════════════════════════╪═══════════════════╪═══════════════════╡
+;    │ set_vga_text_mode:       │ Pseudo-instrução  │ Pseudo-instrução  │    
+;    ├──────────────────────────┼───────────────────┼───────────────────┤
+;    │ mov ah, 0x00             │ B4 00             │ 10110100 00000000 │    
+;    ├──────────────────────────┼───────────────────┼───────────────────┤
+;    │ mov al, 0x03             │ B0 03             │ 10110000 00000011 │
+;    ├──────────────────────────┼───────────────────┼───────────────────┤
+;    │ int 0x10                 │ CD 10             │ 11001101 00010000 │
+;    └──────────────────────────┴───────────────────┴───────────────────┘
+;
+;
+; Basta você consultar a documentação do montador NASM em https://www.nasm.us/doc/ 
+; e será capaz de escrever os opcodes para cada instrução assembly no código-fonte.
+;
+; Ao final de todo este processo de tradução de uma linguagem para a outra e ajustes
+; no arquivo binário, teremos um bootloader com exatamente 512 bytes, que vai se
+; alinhar perfeitamente com o tamanho do setor MBR. Agora, perceba a diretiva
+; %include "kernel.asm" incluída no final do código-fonte do bootloader. Ela diz
+; para o montador NASM: Concatene o assembly do arquivo "kernel.asm" neste ponto 
+; do código-fonte do bootloader.
+;
+; Na prática, ela transforma os dois arquivos separados num só no momento da
+; montagem. Como é fácil de deduzir, o arquivo "kernel.asm" contém o código-fonte
+; em assembly do kernel do relógio. Então, o binário resultante da montagem terá
+; tanto os opcodes do bootloader quando os do kernel, e com base nele nós
+; geraremos a imagem de disco, que será gravada no dispositivo de boot. 
 ;
 ; =============================================================================
 
