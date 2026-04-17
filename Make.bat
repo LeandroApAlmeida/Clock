@@ -14,11 +14,17 @@ echo Compilando bootloader.asm...
 
 echo.
 
+echo Compilando kernel.asm...
+
+%NASM_PATH% -f bin %SRC_DIR%\kernel.asm -o %OUTPUT_DIR%\kernel.bin
+
+echo.
+
 echo Gerando clock.img...
 
 echo.
 
-copy /b %OUTPUT_DIR%\bootloader.bin %OUTPUT_DIR%\clock.img
+copy /b %OUTPUT_DIR%\bootloader.bin+%OUTPUT_DIR%\kernel.bin %OUTPUT_DIR%\clock.img
 
 echo.
 

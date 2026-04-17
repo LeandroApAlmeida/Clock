@@ -36,6 +36,8 @@
 
 [BITS 32]                         ; O kernel roda em Modo Protegido (32-bit).
 
+[ORG 0x7E00]
+
 
 
 

@@ -672,7 +672,7 @@ load_kernel_image:
 ;                       ┌──────────────────────────────┐
 ;                       │ Executa o Far Jump           │
 ;                       │------------------------------│
-;                       │ jmp 0x08:kernel_entry        │
+;                       │ jmp 0x08:0x7E20              │
 ;                       │                              │
 ;                       │ • Atualiza CS e EIP          │
 ;                       │ • Limpa o pipeline da CPU    │
@@ -690,7 +690,7 @@ load_kernel_image:
 ;                                      │
 ;                                      ▼ 
 ;                       ┌──────────────────────────────┐
-;                       │ Executa kernel_entry:        │
+;                       │ Executa kernel_entry (0x7E20)│
 ;                       │------------------------------│
 ;                       │ mov ax, 0x10                 │
 ;                       │ mov ds, ax                   │
@@ -716,19 +716,18 @@ load_kernel_image:
 ;
 ; Ao executar a instrução Far Jump em modo protegido:
 ;
-;                            jmp 0x08:kernel_entry
+;                              jmp 0x08:0x7E20
 ;
 ; passamos o seletor do Descritor do Segmento de Código do Kernel (0x08) e o 
-; endereço do ponto de entrada do kernel (kernel_entry). Com base nestes parâmetros, 
-; o CPU atualiza o registrador de segmento CS e calcula o offset do registrador 
-; de instrução EIP, que vai apontar para o endereço de kernel_entry. Então, quando
-; o controle do programa passar para o kernel, as primeiras instruções executadas 
-; pelo CPU serão as que estão no endereço de kernel_entry.
+; endereço do ponto de entrada do kernel - kernel_entry (0x7E20). Com base nestes
+; parâmetros, o CPU atualiza o registrador de segmento CS e calcula o offset do
+; registrador de instrução EIP, que vai apontar para o endereço de kernel_entry. 
+; Quando o controle do programa passar para o kernel, a primeira instrução a ser
+; executada pelo CPU, apontada por EIP, será a que está em kernel_entry.
 ;
-; Como os 32 bytes da assinatura do kernel estão em endereços anteriores a 
-; kernel_entry, e EIP aponta para kernel_entry, apenas as instruções a partir 
-; desse ponto são executadas, não havendo o risco de os bytes da assinatura serem 
-; confundidos com instruções e fazer o programa falhar.
+; Como os 32 bytes da assinatura do kernel estão em endereços anteriores, apenas 
+; as instruções a partir desse ponto são executadas, não havendo o risco de os 
+; bytes da assinatura serem confundidos com instruções e fazer o programa falhar.
 ;
 ; =============================================================================
 
@@ -759,13 +758,14 @@ enter_pmode_and_jump:
     mov cr0, eax                  ; Copia o valor de EAX, com o PE ativado, para
                                   ;	CR0.
 	
-    jmp 0x08:kernel_entry         ; Executa um Far Jump (salto longo) para passar
+    jmp 0x08:0x7E20               ; Executa um Far Jump (salto longo) para passar
 	                              ; o controle do programa para o kernel. O seletor
 								  ; 0x08 aponta para o Descritor do Segmento de
-								  ; Código do Kernel na GDT, e kernel_entry para
-								  ; o endereço do ponto de entrada do kernel, onde 
-								  ; o ponteiro de instrução (EIP) será posicionado 
-								  ; para a CPU começar a execução das instruções.
+								  ; Código do Kernel na GDT, e o endereço 0x7E20 
+								  ; para o ponto de entrada do kernel (kernel_entry),  
+								  ; onde o ponteiro de instrução (EIP) será posicionado 
+								  ; para o CPU começar a execução das instruções
+								  ; a partir dele.
 			
 			
 						
@@ -1259,9 +1259,9 @@ print_string:
 ; Descriptor) na GDT deste projeto:
 ;
 ;
-;                                       Seletor (Kernel Code Descriptor)
-;                                     ↙
-;                             jmp 0x08:kernel_entry
+;                                          Seletor (Kernel Code Descriptor)
+;                                        ↙
+;                                jmp 0x08:0x7E20
 ; 
 ;
 ; Em binário, 0x08 representa 0b0000000000001000. Isolando cada campo do seletor,
@@ -1481,25 +1481,87 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; AJUSTE DO BINÁRIO E ASSINATURA DO SETOR MBR
 ;
 ;
-; O bootloader é gravado no setor MBR (Master Boot Record) de um dispositivo de
-; armazenamento (disco rígido, memória flash, SSD, etc). MBR é o primeiro setor 
-; físico (Setor 1) e tem 512 bytes.
+; Neste ponto do código-fonte assembly do bootloader já definimos toda a programação
+; necessária para que ele possa carregar o kernel do relógio na memória e entregar 
+; o controle do programa para o mesmo, mudando o processador para o Modo Protegido
+; antes disso. Agora precisamos fazer os ajustes finais no assembly para que o 
+; bootloader possa ocupar todo o setor MBR do dispositivo de armazenamento quando 
+; a imagem de disco do relógio for gravada neste. 
+;
+; O setor MBR (Master Boot Record) é o primeiro setor físico de um disco (Setor 0 
+; ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos um disco 
+; inicializável, o bootloader deve obrigatóriamente ser gravado neste setor.
 ;
 ;
 ;              ├── MBR ──┤
 ;              ┌─────────┬─────────┬─────────┬─────────┬─────────┬──
-;              │ Setor 1 │ Setor 2 │ Setor 3 │ Setor 4 │ Setor 5 │
+;              │ Setor 0 │ Setor 1 │ Setor 2 │ Setor 3 │ Setor 4 │
 ;              └─────────┴─────────┴─────────┴─────────┴─────────┴──
 ;
+; 
+; O assembly neste arquivo foi escrito para o montador NASM (Netwide Assembler),
+; disponível para download em https://www.nasm.us/. NASM é um montador de código 
+; aberto e multiplataforma, utilizado para traduzir assembly para linguagem de 
+; máquina para arquiteturas x86 (Intel/AMD). Ele pode ser usado para escrever 
+; programas de 16 bits (Modo Real), 32 bits (Modo Protegido) e 64 bits (Modo Longo).
+; 
+; Linguagem de máquina é o nível mais baixo de representação de um programa, sendo 
+; a única linguagem que o processador consegue entender e executar diretamente.
 ;
-; O arquivo binário do bootloader precisa preencher todos os 512 bytes do MBR
-; quando for gravada a imagem de disco no dispositivo. Mas as instruções e dados 
-; em linguagem de máquina gerados pelo montador NASM até este ponto do código-fonte
-; assembly não ocupam todo este espaço, e precisamos fazer alguns ajustes.
+; Suas principais características são:
 ;
-; Até o byte final da cópia da assinatura do kernel kernel_sign (byte 0xCC) na
-; seção de dados acima, o montador terá gravado 401 bytes em linguagem de máquina
-; no arquivo binário:
+;
+;   > Formato binário: É composta exclusivamente por sequências de bits (0s e 1s). 
+;     Esses números representam impulsos elétricos que ativam circuitos específicos
+;     dentro do chip.
+;
+;   > Instruções de hardware: Cada sequência binária, chamada de opcode, corresponde
+;     a uma operação física que o processador sabe fazer, como somar dois números, 
+;     mover um dado da memória para um registrador e vice-versa ou desviar a execução 
+;     para outro ponto.
+;
+;   > Dependência da arquitetura: Ela é específica para cada arquitetura de processador. 
+;     A linguagem de máquina do processador Intel x86 deste programa é um "dialeto"
+;     completamente diferente da de um processador Apple M3 (ARM), por exemplo, e um
+;     não poderá executar o programa gerado para o outro.
+;
+;
+; Ao traduzir o assembly do bootloader para linguagem de máquina usando o montador 
+; NASM, será criado um arquivo binário no diretório do projeto (bootloader.bin). 
+; Este arquivo binário será copiado no início da imagem de disco, para que quando 
+; se gravar esta imagem no dispositivo de armazenamento, ele ocupe todo o espaço 
+; do setor MBR deste.
+; 
+;
+;                    (montador NASM)
+;               ╔════════════════════════╗
+;               ║                        ▼
+;      ┌─────────────────┐      ┌─────────────────┐    * bootloader.asm: é este
+;      │[BITS 16]        │      │EB 01 90 FA 88 16│      arquivo de código-fonte
+;      │[ORG 0x7C00]     │      │EF 7C 31 C0 8E D8│      assembly. Será traduzido
+;      │                 │      │8E C0 8E E0 8E E8│      pelo montador NASM para
+;      │jmp short start  │      │8E D0 BC 00 7C FB│      gerar o arquivo binário.
+;      │nop              │      │B4 00 B0 03 CD 10│
+;      │                 │      │BD 00 7E 89 EF B9│    * bootloader.bin: arquivo
+;      │start:           │      │20 00 C6 05 00 47│      binário contendo as 
+;      │  cli            │      │E2 FA BE 05 00 B4│      instruções em linguagem
+;      │  mov [drive], dl│      │00 8A 16 EF 7C CD│      de máquina (programa)
+;      │  xor ax, ax     │      │13 72 27 B4 02 8A│      do bootloader. Este arquivo 
+;      │  mov ds, ax     │      │16 EF 7C B0 0A B5│      que será gravado no setor
+;      │  mov es, ax     │      │00 B6 00 B1 02 89│      MBR do disco.
+;      └─────────────────┘      └─────────────────┘
+;         bootloader.asm           bootloader.bin
+;
+;
+; Para gerar o arquivo binário a partir do código-fonte assembly, passamos os 
+; seguintes parâmetros para o montador no prompt de comandos do Windows: 
+;
+;
+;                nasm -f bin "bootloader.asm" -o "bootloader.bin"
+;
+;
+; Se traduzíssemos o código-fonte só até este ponto na seção de dados do arquivo, 
+; seria gerado um binário com os seguintes bytes em linguagem de máquina:
 ;
 ;
 ;    1º byte: opcode de "jmp short"
@@ -1524,33 +1586,36 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;                                  401º byte: último byte de kernel_sign 
 ;
 ;
-; Faltarão ainda 111 bytes para preencher os 512 do setor MBR. 
+; Como o arquivo binário do bootloader deve preencher todos os 512 bytes do setor
+; MBR, faltam ainda 111 bytes para conseguir este alinhamento.
 ;
 ; A inserção destes bytes restantes no arquivo pelo montador acontecerá em duas
-; etapas: 
+; etapas quando ele traduzir o restante do código da seção de dados do assembly: 
 ;
 ;
-;   Etapa 1: Preenchimento até o offset 509 com bytes 0. (times 510-($-$$) db 0)
+;   Etapa 1: times 510-($-$$) db 0 → Preenchimento até o offset 509 com bytes 0.
 ;
-;   Etapa 2: Assinatura do MBR nos offsets 510 e 511. (dw 0xAA55)
+;   Etapa 2: dw 0xAA55 → Assinatura do setor MBR nos offsets 510 e 511.
 ;
 ;
-; Basicamente, nós vamos instruir o montador a inflar o arquivo com bytes 0 até
-; ele ficar com 510 bytes, e logo após, a gravar os bytes da assinatura do setor 
-; MBR no final do arquivo. Os bytes 0 adicionados pelo montador na primeira etapa 
-; não são instruções ou dados do programa do bootloader. Eles apenas ajustam o
-; tamanho do arquivo binário para se alinhar ao tamanho do setor MBR.
+; Na Etapa 1, o montador vai inflar o arquivo com bytes 0 até ele ficar com 510
+; bytes. Na Etapa 2, ele vai gravar os bytes da assinatura do setor MBR no final
+; do arquivo. Os bytes 0 adicionados pelo montador na Etapa 1 não são instruções
+; ou dados do programa do bootloader. Eles apenas ajustam o tamanho do arquivo 
+; binário para se alinhar com o tamanho do setor MBR.
 ;
-; Quanto à assinatura do MBR, é uma exigência dos sistemas com firmware BIOS que
-; os discos de boot recebam 0x55AA (Boot Signature) nos dois bytes finais daquele 
-; setor. Se não fizermos isso, mesmo que tenhamos configurado corretamente a sequência
-; de boot no setup para buscar primeiro o dispositivo que vamos testar, o BIOS 
-; ignorará que aquele é um disco inicializável e exibirá o erro "No bootable device 
-; found", ou pulará para o próximo dispositivo na sequência de boot, se houver
-; algum. 
+; É uma exigência dos sistemas com firmware BIOS que os discos inicializáveis sejam
+; assinados com os bytes 55 AA (Boot Signature) nos dois bytes finais do setor 
+; MBR. Se não fizermos isso, mesmo que tenhamos configurado corretamente a sequência
+; de boot no setup para buscar primeiro o dispositivo que vamos testar, e o programa
+; do bootloader esteja correto, o BIOS ignorará que aquele é um disco inicializável 
+; e exibirá o erro "No bootable device found", ou pulará para o próximo dispositivo
+; na sequência de boot, se houver algum, para tentar inicializar o sistema a partir
+; dele. 
 ;
 ; Depois que o montador NASM executar as etapas de ajuste acima, o arquivo binário
-; do bootloader terá os seguintes bytes em linguagem de máquina:
+; do bootloader terá os seguintes bytes em linguagem de máquina para processadores
+; x86:
 ;
 ;
 ; EB 01 90 FA 88 16 EF 7C 31 C0 8E D8 8E C0 8E E0 8E E8 8E D0 BC 00 7C FB B4 00 
@@ -1575,21 +1640,32 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 55 AA
 ;
 ;
-; São estas as instruções que o processador entende e executa passo a passo, não
-; o texto em assembly que eu escrevi neste arquivo, e é importante ficar bem clara 
-; a distinção entre um tipo de linguagem e outra.
+; Agora o bootloader está completamente alinhado com o setor MBR, para que quando 
+; a imagem de disco do relógio for gravada no dispositivo de armazenamento, ele 
+; seja copiado corretamente para aquele setor. O MBR também está assinado, indicando 
+; para o BIOS que aquele dispositivo de armazenamento que receber esta imagem de
+; disco é um dispositivo inicializável.
+;
+; Para decifrar o que são estes bytes "misteriosos" no código de máquina gravado
+; pelo montador NASM no arquivo binário do bootloader, a partir da tradução do 
+; código-fonte em assembly deste arquivo, é preciso entender o que é a linguagem
+; assembly, e como ela gera as instruções para o processador. Entender a distinção 
+; entre os dois tipos de linguagem envolvidas no processo de montagem é um passo 
+; fundamental para a compreenção e a depuração do programa final.
 ;
 ; Cada instrução em assembly (representada por mnemônicos como jmp, nop, mov, etc.) 
 ; é convertida pelo montador em uma ou mais instruções de máquina, compostas por 
-; opcodes e possíveis operandos codificados em binário. O montador analisa o código 
-; assembly, resolve símbolos como rótulos e variáveis, e então gera os bytes 
-; correspondentes no arquivo de saída, respeitando a organização das seções e o 
-; layout do programa. Quando encontra definições de dados, como drive_number db 0, 
-; ele insere diretamente os valores especificados no binário. Já os rótulos são
-; substituídos por endereços ou deslocamentos apropriados, dependendo do tipo de 
-; instrução que os utiliza. Durante esse processo, o montador pode realizar múltiplas 
-; passagens para resolver referências e calcular corretamente os endereços antes
-; de gerar o código final em linguagem de máquina.
+; opcodes e possíveis operandos codificados em binário durante a tradução. O montador 
+; analisa o código assembly, resolve símbolos como rótulos e variáveis, e então 
+; gera os bytes correspondentes no arquivo de saída, respeitando a organização das seções 
+; e o layout do programa. 
+;
+; Quando encontra definições de dados, como drive_number db 0, ele insere diretamente
+; os valores especificados no binário. Já os rótulos são substituídos por endereços
+; ou deslocamentos apropriados, dependendo do tipo de instrução que os utiliza. 
+; Durante esse processo, o montador pode realizar múltiplas passagens para resolver
+; referências e calcular corretamente os endereços antes de gerar o código final
+; em linguagem de máquina.
 ;
 ;                            start:
 ;                            ┆
@@ -1600,19 +1676,22 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; └──────────────────┴───────┴───────┴──────────────────────────┴──   
 ;
 ;
-; A linguagem assembly, portanto, é apenas uma representação textual "amigável" 
-; das instruções em binário que o processador executa (programa), voltada para
-; seres humanos lerem e escreverem programas de forma mais intuitiva.
+; A linguagem assembly em si, é apenas uma representação textual "amigável" das
+; instruções em binário que o processador executa, voltada para seres humanos lerem 
+; e escreverem programas de forma mais intuitiva. Mas o processador não entende
+; nem tampouco executa assembly. É preciso que o montador NASM traduza de uma
+; linguagem para a outra.
 ;
-; Em "bare metal" (programação direta no hardware, sem sistema operacional), 
+; Em assembly "bare metal" (programação direta no hardware, sem sistema operacional), 
 ; diferentemente de linguagens de alto nível, como C e C++, em que o compilador
 ; gera os upcodes para instruções como "if", "while", "for", "switch" de modo 
-; transparente para o programador, a tradução do assembly é mais direta: o montador
-; gera os bytes correspondentes às instruções especificadas no código, respeitando 
-; a ordem lógica em que elas foram escritas. 
+; transparente para o programador, a tradução é muito mais direta e previsível: o 
+; montador gera os bytes correspondentes às instruções especificadas no código 
+; assembly, respeitando a ordem lógica em que elas foram escritas e grava na mesma 
+; sequência lógica no arquivo de saída. 
 ;
 ; Então, quando o montador lê a sequência de instruções assembly ilustrada no 
-; diagrama acima no texto do código-fonte:
+; diagrama acima no texto deste código-fonte:
 ;
 ; 
 ;     jmp short start
@@ -1623,7 +1702,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Ele vai produzir como saída a sequência de opcodes correspondente em linguagem
-; de máquina:
+; de máquina: (veja na tabela adiante o significado de cada opcode no diagrama)
 ;
 ;
 ;     EB 01 90 FA 88 16 EF 7C
@@ -1636,16 +1715,16 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Na prática, poderíamos abrir um editor hexadecimal e digitar os opcodes, operandos 
-; e variáveis do arquivo binário mostrados acima manualmente, sem escrever nenhuma
-; linha em assembly. Fazendo dessa forma, não precisaríamos do montador NASM para 
-; gerar o binário do bootloader, pois já escreveríamos diretamente na linguagem de 
-; máquina que o processador entende. Esta certamente seria uma tarefa extremamente
-; tediosa e nada intuitiva, que faria a programação de um computador moderno muito
-; semelhante à dos computadores de primeira geração das décadas de 1940 e 1950,
-; como ENIAC (1945), EDVAC (1949), IBM 701 (1952), com a diferença que naqueles
-; computadores primordiais, as sequências de 0's e 1's era determinada diretamente
-; no hardware, com a reconfiguração de cabos e chaves, e não pela escrita de um 
-; arquivo em disco.
+; e variáveis do arquivo binário do bootloader sem escrever nenhuma linha em assembly. 
+; Fazendo-se dessa forma, não precisaríamos do montador NASM, pois já escreveríamos 
+; o programa diretamente na linguagem de máquina que o processador entende. 
+;
+; Esta, seguramente seria uma tarefa extremamente tediosa e nem um pouco intuitiva,
+; que faria a programação de um computador moderno muito semelhante à dos computadores
+; de primeira geração das décadas de 1940 e 1950, como ENIAC (1945), EDVAC (1949), 
+; IBM 701 (1952), com a diferença que naqueles computadores primordiais, as sequências
+; de 0's e 1's era determinada diretamente no hardware, com a reconfiguração de
+; cabos e chaves, e não pela escrita de um arquivo em disco.
 ;
 ; A tabela abaixo mostra como o montador NASM traduz as primeiras instruções deste
 ; código-fonte em assembly em seus respectivos opcodes em linguagem de máquina:
@@ -1685,27 +1764,27 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    │ sti                      │ FB                │ 11111011          │
 ;    └──────────────────────────┴───────────────────┴───────────────────┘
 ;
-;    * Observe que o código assembly para NASM contém algumas pseudo-instruções
-;      que não geram upcodes para o processador. A label start:, apenas demarca
+;    * Observe que o código assembly para NASM contém pseudo-instruções que não 
+;      geram upcodes para o processador. A label start:, por exemplo, apenas demarca
 ;      o offset de uma instrução (cli), servindo como uma espécie de bandeira no
 ;      código, que o montador converterá num endereço ou deslocamento, dependendo
 ;      da instrução que a utiliza (jmp short transforma em deslocamento). Outras 
-;      pseudo-instruções que aparecem no código são: times, db, dw, dd, dq. Todas 
+;      pseudo-instruções que aparecem neste assembly são: times, db, dw, dd, dq. Todas 
 ;      elas não geram opcodes, apenas instruem o montador a gravar bytes no binário, 
 ;      no sentido de alocar espaço com alguma função (servir como "variável" ou
 ;      para inflar o arquivo).
 ;
 ;
 ; Se comparar os bytes dos upcodes na tabela, em hexadecimal, com os primeiros
-; bytes do arquivo binário mostrados acima, verá que são os mesmos, pois a ordem
+; bytes do arquivo binário do bootloader, verá que são os mesmos, pois a ordem
 ; das instruções do assembly é mantida rigorosamente pelo montador. 
 ;
 ; As intruções na tabela correspondem ao código de alinhamento e à rotina "start:" 
 ; no assembly, que grava o número do drive de boot na variável drive_number na 
 ; memória, configura os registradores de segmento e a pilha do bootloader.
 ;
-; Agora ficou bem mais fácil construir a tabela da rotina seguinte (set_vga_text_mode), 
-; que configura o modo de texto VGA 3H:
+; Creio que agora ficou bem mais fácil construir a tabela da rotina seguinte à
+; start: (rotina set_vga_text_mode:), que configura o modo de texto VGA 3H:
 ;
 ;
 ;                               ┌───────────────────────────────────────┐
@@ -1724,20 +1803,11 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Basta você consultar a documentação do montador NASM em https://www.nasm.us/doc/ 
-; e será capaz de escrever os opcodes para cada instrução assembly no código-fonte.
+; e será capaz de relacionar os opcodes com cada instrução assembly no código-fonte.
 ;
-; Ao final de todo este processo de tradução de uma linguagem para a outra e ajustes
-; no arquivo binário, teremos um bootloader com exatamente 512 bytes, que vai se
-; alinhar perfeitamente com o tamanho do setor MBR. Agora, perceba a diretiva
-; %include "kernel.asm" incluída no final do código-fonte do bootloader. Ela diz
-; para o montador NASM: Concatene o assembly do arquivo "kernel.asm" neste ponto 
-; do código-fonte do bootloader.
 ;
-; Na prática, ela transforma os dois arquivos separados num só no momento da
-; montagem. Como é fácil de deduzir, o arquivo "kernel.asm" contém o código-fonte
-; em assembly do kernel do relógio. Então, o binário resultante da montagem terá
-; tanto os opcodes do bootloader quando os do kernel, e com base nele nós
-; geraremos a imagem de disco, que será gravada no dispositivo de boot. 
+; IMAGEM DE DISCO EM RAW FORMAT 
+;
 ;
 ; =============================================================================
 
@@ -1746,8 +1816,3 @@ times 510-($-$$) db 0             ; Etapa 1: completa com bytes 0 offset 509.
 
 dw 0xAA55                         ; Etapa 2: Assina o setor de boot com o Boot
                                   ; Signature (bytes 55-AA).
-
-
-
-
-%include "kernel.asm"
