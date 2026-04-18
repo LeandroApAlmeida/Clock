@@ -874,6 +874,8 @@ setup_tsc:
     jc .invariant
 
 .not_invariant:
+	
+	jmp .done
 
     call tsc_inv_fallback
 
