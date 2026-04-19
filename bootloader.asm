@@ -68,6 +68,7 @@ nop                               ; bootloader. Como a imagem gerada está em
 ;   ● Região entre BIOS Data Area e o Bootloader (em destaque): Esta é a região
 ;     que escolhemos. Ela tem 30.464 bytes. 
 ;
+;
 ;   ● Região entre Bootloader e Extended BIOS Data Area: Nesta região de memória,
 ;     ao centro do diagrama, que será carregado o kernel do relógio. Ela tem
 ;     622.080 bytes (o endereço de início da EBDA é comumente 0x9FC00, mas para
@@ -93,7 +94,7 @@ nop                               ; bootloader. Como a imagem gerada está em
 ;                         │                        │
 ;                      ┬  │────────────────────────│ ← SP (0x7C00)
 ;                      │  │                        │  (↓ push ↑ pop)
-;                Pilha │  │      Free (30 KB)      │  
+;                Pilha │  │          Free          │  
 ;                      │  │                        │  
 ;                      ┴  │────────────────────────│  
 ;                         │                        │  
@@ -180,6 +181,7 @@ start:
 ;
 ;
 ;   ● Byte baixo: Índice do caractere na tabela Code Page 437.
+;
 ;
 ;   ● Byte alto: Atributos de cor e estado do caractere.
 ;
@@ -1530,7 +1532,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ; O setor MBR (Master Boot Record) é o primeiro setor físico de um disco (Setor 0 
 ; ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos um disco 
-; inicializável, o bootloader deve, obrigatóriamente, ser gravado neste setor.
+; inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
 ;
 ;
 ;              ├── MBR ──┤
@@ -1555,10 +1557,12 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;     Esses números representam impulsos elétricos que ativam circuitos específicos
 ;     dentro do chip.
 ;
+;
 ;   ● Instruções de hardware: Cada sequência binária, chamada de opcode, corresponde
 ;     a uma operação física que o processador sabe fazer, como somar dois números, 
 ;     mover um dado da memória para um registrador e vice-versa ou desviar a execução 
 ;     para outro ponto.
+;
 ;
 ;   ● Dependência da arquitetura: Ela é específica para cada arquitetura de processador. 
 ;     A linguagem de máquina do processador Intel x86 deste programa é um "dialeto"
@@ -1636,12 +1640,12 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Estas instruções carregam o kernel na memória e entregam o controle do programa
-; para ele, que é a função para qual este bootloader foi projetado. Portanto, o 
+; para ele, que é a função para qual este bootloader foi projetado, portanto, o 
 ; programa que o processador vai executar está completo no arquivo.
 ; 
 ; Mesmo o programa estando completo, sem fazer os ajustes finais no arquivo binário, 
 ; o bootloader ainda não vai funcionar. O binário deve preencher todos os 512 bytes 
-; do setor MBR, portanto, faltam ainda 111 bytes para conseguir este alinhamento. 
+; do setor MBR e faltam ainda 111 bytes para conseguir este alinhamento (512-401=111). 
 ; Além disso, o setor MBR deve receber uma assinatura (Boot Signature) nos dois 
 ; bytes finais. Sem fazer estes ajustes, o BIOS é incapaz de carregar o programa
 ; do bootloader após a etapa de POST (Power-On Self-Test).
@@ -1714,7 +1718,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; Agora o bootloader está completamente alinhado com o setor MBR, para que quando 
 ; a imagem de disco do relógio for gravada no dispositivo de armazenamento, ele 
 ; seja copiado corretamente para aquele setor. O MBR também está assinado, indicando 
-; para o BIOS que o dispositivo de armazenamento que receber esta imagem de disco 
+; para o BIOS que o dispositivo de armazenamento que receber aquela imagem de disco 
 ; é um dispositivo inicializável.
 ;
 ; Para decifrar o significado de cada byte do código de máquina gravado pelo montador 
@@ -1725,16 +1729,16 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; Cada instrução em assembly, representada por mnemônicos como jmp, nop, mov, xor, 
 ; é convertida pelo montador em uma ou mais instruções de máquina, compostas por 
 ; opcodes e possíveis operandos codificados em binário durante a tradução. O montador 
-; analisa o código assembly, resolve símbolos como rótulos (label) e variáveis,
+; analisa o código assembly, resolve símbolos como rótulos (labels) e variáveis,
 ; e então gera os bytes correspondentes no arquivo binário, respeitando a organização
 ; das seções e o layout do programa. 
 ;
 ; Quando encontra definições de dados, como drive_number db 0, ele insere diretamente
-; os valores especificados (0) no binário. Já os rótulos são substituídos por 
-; endereços ou deslocamentos apropriados, dependendo do tipo de instrução que os 
-; utiliza. Durante esse processo, o montador pode realizar múltiplas passagens 
-; para resolver referências e calcular corretamente os endereços antes de gerar 
-; o código final em linguagem de máquina.
+; os valores especificados no binário. Já os rótulos são substituídos pelos endereços 
+; ou deslocamentos apropriados, dependendo dos tipos das instruções que os utilizam. 
+; Durante este processo, o montador pode realizar múltiplas passagens para resolver
+; referências e calcular corretamente os endereços antes de gerar o código final
+; em linguagem de máquina.
 ;
 ;                            start:
 ;                            ┆
@@ -1779,32 +1783,32 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; Onde:
 ;
 ;
-;   EB: Opcode para a instrução jump relativo curto (jmp short).
+;   EB → Opcode para a instrução jump relativo curto (jmp short).
 ;
-;   01: Operando para o opcode EB. Diz quantos bytes o ponteiro de instruções deve
-;       saltar à frente para executar o programa a partir daquele ponto. Neste caso,
-;       saltará 1 byte (salta a instrução "nop").
+;   01 → Operando para o opcode EB. Diz quantos bytes o ponteiro de instruções 
+;   deve saltar à frente para executar o programa a partir daquele ponto. Neste
+;   caso, saltará 1 byte (salta a instrução "nop").
 ;
-;   90: Opcode para a instrução No Operation (nop). Esta instrução ocupa 1 byte 
-;       de espaço e não altera registradores. No caso, eu utilizo ela no código 
-;       apenas para manter o alinhamento da primeira instrução útil do bootloader 
-;       (label start:) no offset 0x03.
+;   90 → Opcode para a instrução No Operation (nop). Esta instrução ocupa 1 byte 
+;   de espaço e não altera registradores. No caso, eu utilizo ela no código apenas
+;   para manter o alinhamento da primeira instrução útil do bootloader (label start:)
+;   no offset 0x03.
 ;
-;   FA: Opcode para a instrução Clear Interrupt Flag (cli). Esta instrução desabilita
-;       as instruções mascaráveis (mouse, teclado, timer, disco, etc). Ela faz isso
-;       alterando a flag IF (bit 9) do registrador EFLAGS para 0. 
+;   FA → Opcode para a instrução Clear Interrupt Flag (cli). Esta instrução desabilita
+;   as instruções mascaráveis (mouse, teclado, timer, disco, etc). Ela faz isso alterando 
+;   a flag IF (bit 9) do registrador EFLAGS para 0. 
 ;
-;   88: Opcode para a instrução MOV r/m8, r8. Esta instrução move um valor de 8
-;       bits (1 byte) entre um registrador e a memória.
+;   88 → Opcode para a instrução MOV r/m8, r8. Esta instrução move um valor de 8
+;   bits (1 byte) entre um registrador e a memória.
 ;
-;   16: Modo de endereçamento da instrução MOV (ModR/M). Este valor indica que
-;       vai mover o valor no registrador DL (8 bits) para a memória, no endereço 
-;       que será fornecido a seguir.
+;   16 → Modo de endereçamento da instrução MOV (ModR/M). Este valor indica que
+;   vai mover o valor no registrador DL (8 bits) para a memória, no endereço que
+;   será fornecido a seguir.
 ;
-;   EF: Parte baixa (Low Byte) do endereço de memória que irá receber o valor em
-;       DL pela instrução mov (byte 0xEF do endereço 0x7CEF).
+;   EF → Parte baixa (Low Byte) do endereço de memória que irá receber o valor 
+;   em DL pela instrução mov (byte 0xEF do endereço 0x7CEF).
 ;
-;   EF: Parte alta (High Byte) do endereço de memória (byte 0x7C do endereço 0x7CEF).
+;   EF → Parte alta (High Byte) do endereço de memória (byte 0x7C do endereço 0x7CEF).
 ;
 ;
 ; Representando os mesmos bytes acima em formato binário, que é o formato "natural"
@@ -1816,7 +1820,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ; Não vou entrar em maiores detalhes sobre como estas instruções são executadas bit a 
 ; bit pelos circuitos do processador x86 dentro do ciclo Fetch-Decode-Execute (Busca-
-; Decodificação -Execução), porque isto foge ao escopo deste projeto. Mas quem tiver
+; Decodificação-Execução), porque isto foge ao escopo deste projeto. Mas quem tiver
 ; curiosidade, faça uma consulta aprofundada sobre o tema, que é um assunto muito 
 ; relevante, e coloca o interessado dentro das "entranhas" da máquina. Particularmente, 
 ; tenho enorme fixação neste assunto, pois no passado, fui um entusiasta de eletrônica 
@@ -1889,7 +1893,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; memória, configura os registradores de segmento e a pilha do bootloader.
 ;
 ; Creio que agora ficou bem mais fácil construir a tabela da rotina seguinte à
-; start:, a rotina set_vga_text_mode:, que configura o modo de texto VGA 3H:
+; start:, a rotina set_vga_text_mode:, que configura o modo de texto VGA 3H,
+; e também as outras rotinas restantes:
 ;
 ;
 ;                               ┌───────────────────────────────────────┐
@@ -1907,8 +1912,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    └──────────────────────────┴───────────────────┴───────────────────┘
 ;
 ;
-; Basta você consultar a documentação do montador NASM em https://www.nasm.us/doc/ 
-; e será capaz de relacionar os opcodes com cada instrução assembly no código-fonte.
+; (Para mais informações sobre o formato do arquivo binário consultar 
+;  https://www.nasm.us/doc/nasm09.html#section-9.1.1)
 ;
 ; =============================================================================
 
@@ -1927,4 +1932,5 @@ dw 0xAA55                         ; Etapa 2: Assina o setor de boot com o Boot
 ; IMAGEM DE DISCO EM RAW FORMAT 
 ;
 ;
+; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
 ; =============================================================================
