@@ -1479,10 +1479,11 @@ gdt_ptr:                          ; Estrutura que aponta para a GDT
 ; =============================================================================
 	
 	
-drive_number db 0                 ; Variável de 1 byte que guarda o número do
+drive_number:                     ; Variável de 1 byte que guarda o número do
                                   ; drive de boot para operações de Leitura/Escrita
-								  ; de disco.
-								  
+	db 0					      ; de disco.
+		
+		
 disk_error_str:                   ; Mensagem de erro 1.
 
 	db 0x0D, 0x0A
@@ -1491,11 +1492,13 @@ disk_error_str:                   ; Mensagem de erro 1.
 	db 'Tecle ENTER para sair.'
 	db 0
 
+
 apm_not_found_str:                ; Mensagem de erro 2.
 
 	db 'APM BIOS not found!'
 	db 0xD, 0xA
 	db 0
+
 
 apm_conn_fail_str:                ; Mensagem de erro 3.
 
@@ -1503,11 +1506,13 @@ apm_conn_fail_str:                ; Mensagem de erro 3.
 	db 0xD, 0xA
 	db 0
 
+
 shutdown_fail_str:                ; Mensagem de erro 4.
 
 	db 'Shutdown failed via APM!'
 	db 0xD, 0xA
 	db 0
+
 
 kernel_sign:                      ; Cópia da Assinatura do kernel.
 
@@ -1918,9 +1923,9 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; =============================================================================
 
 
-times 510-($-$$) db 0             ; Etapa 1: completa com bytes 0 offset 509.
+	times 510-($-$$) db 0         ; Etapa 1: Completa com bytes 0 até offset 509.
 
-dw 0xAA55                         ; Etapa 2: Assina o setor de boot com o Boot
+	dw 0xAA55                     ; Etapa 2: Assina o setor de boot com o Boot
                                   ; Signature (bytes 55-AA) nos offsets 510 e
 								  ; 511.
 
