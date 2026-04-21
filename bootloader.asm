@@ -1535,9 +1535,9 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; possa ocupar todo o setor MBR do dispositivo de armazenamento quando a imagem
 ; de disco do relógio for gravada neste. 
 ;
-; O setor MBR (Master Boot Record) é o primeiro setor físico de um disco (Setor 0 
-; ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos um disco 
-; inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
+; O setor MBR (Master Boot Record) é o primeiro setor físico de um disco particionado
+; (Setor 0 ou LBA 0)  e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos
+; um disco inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
 ;
 ;
 ;              ├── MBR ──┤
@@ -1939,3 +1939,20 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
 ; =============================================================================
+
+
+; Referências:
+;
+; https://en.wikipedia.org/wiki/Master_boot_record#SIG
+;
+; https://www.nasm.us/doc/
+;
+; https://en.wikipedia.org/wiki/Volume_boot_record
+;
+; https://en.wikipedia.org/wiki/File_Allocation_Table
+;
+; https://en.wikipedia.org/wiki/Bootloader
+;
+; https://en.wikipedia.org/wiki/BIOS
+;
+;
