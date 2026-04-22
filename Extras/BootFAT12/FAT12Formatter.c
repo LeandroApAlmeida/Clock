@@ -11,8 +11,266 @@
 #define ROOT_MAX_ENTRIES 224
 
 
+/* 
+ ==============================================================================
+
+ SOBRE O PROJETO
+
+
+ O código fonte deste gerador de imagem de disco é baseado no projeto de bootloader
+ disponível em:
+ 
+ 
+       https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
+ 
+ 
+ No projeto, o autor desenvolve um bootloader que deve ser gravado numa imagem 
+ de disco formatada como FAT12. Ao gravar esta imagem de disco em um dispositivo
+ de armazenamento e dar boot com ele, o bootloader vai buscar um programa de teste 
+ na mesma imagem, usando o nome do arquivo deste programa no sistema de arquivos
+ FAT12 para localizá-lo no disco. Ao localizá-lo nas entradas do diretório raiz
+ do FAT12, percorre as entradas na tabela FAT correpondentes ao arquivo e correga 
+ os clusters apontados por elas na memória. Após carregar o programa de teste, 
+ entrega o controle para o mesmo, que vai mostrar uma frase na tela, e o conteúdo
+ de alguns registradores que ele lê. 
+ 
+ Para definir o nome do arquivo do programa de teste, o autor reserva um espaço 
+ no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Será
+ neste endereço que ele lerá o nome do arquivo para buscá-lo no diretório raiz.
+ Neste projeto, o nome que escolhi para o arquivo é TESTCODE.BIN (TESTCODEBIN no
+ formato 8:3 do FAT12).
+ 
+                        +-----------------------------+
+                        | Jump Instruction            |
+                        +-----------------------------+
+                        | BPB (BIOS Parameter Block)  |
+                        +-----------------------------+
+                        | EBPB (Extended BPB)         |
+                        |-----------------------------|
+						|                             |
+						|                             |
+						|                             |
+                        | Código do Bootloader        |
+						|                             |
+						|                             |
+						|                             |
+                        +.............................+ - Área reservada
+                        | Nome do programa (11 bytes) | | para o nome do 
+                        +.............................+ - arquivo (offsets
+						| Assinatura                  |   498 até 508).
+                        +-----------------------------+
+                  
+ 
+ 
+ SISTEMA DE ARQUIVOS FAT12
+ 
+ Este programa cria uma imagem de disco formatada como FAT12 (File Allocation Table
+ de 12 bits), um dos sistemas de arquivos mais antigos, utilizado principalmente 
+ em disquetes e mídias de pequena capacidade (até cerca de 16 MB).
+
+ A imagem gerada segue o layout clássico de um disquete (por exemplo, 1.44 MB), 
+ contendo um volume FAT12 diretamente a partir do setor 0. Isso é necessário porque 
+ o bootloader foi desenvolvido assumindo esse formato específico, incluindo a 
+ geometria típica de disquetes e a ausência de particionamento.
+
+ Diferentemente de discos rígidos e outros dipositivos de armazenamento com MBR 
+ (Master Boot Record), onde o setor 0 contém uma tabela de partições e código
+ que localiza a partição ativa, nesta abordagem não há esta tabela. Assim, o BIOS 
+ carrega diretamente o setor de boot (VBR), simplificando o processo de boot e 
+ eliminando a necessidade de localizar e encadear o carregamento a partir de uma 
+ partição ativa.
+ 
+ O FAT12 organiza o disco em clusters (grupos de setores), e usa uma tabela chamada
+ FAT (File Allocation Table) para encadear esses clusters.
+ 
+ Um volume FAT12 é dividido em regiões fixas:
+ 
+                           +---------------------+
+                           | Boot Sector (VBR)   |
+                           +---------------------+
+                           | FAT #1              |
+                           +---------------------+
+                           | FAT #2 (cópia)      |
+                           +---------------------+
+                           | Root Directory      |
+                           +---------------------+
+                           | Data Area           |
+                           +---------------------+
+						   
+ Onde:
+ 
+    * Boot Sector (VBR - Volume Boot Record): 
+	
+	Primeiro setor de um volume ou partição, com 512 bytes. O setor de boot contém:
+	
+		> BPB
+
+		> Código do bootloader
+		
+		> Assinatura
+		
+	O código do bootloader é para o caso de um disco inicializável, como a imagem
+	de disco que será criada por esta função. Caso seja apenas um disco para armazenar
+	arquivos, normalmente é gravado um programa que mostra uma mensagem simples na 
+	tela no lugar.
+	
+	O diagrama abaixo, representa como é o setor de boot da imagem de disco gerada
+	por esta função:
+	
+                        +----------------------------+
+                        | Jump Instruction (3 bytes) |
+                        +----------------------------+
+                        | BPB (BIOS Parameter Block) |
+                        +----------------------------+
+                        | EBPB (Extended BPB)        |
+                        |----------------------------|
+						|                            |
+						|                            |
+						|                            |
+                        | Código do Bootloader       |
+						|                            |
+						|                            |
+						|                            |
+                        +----------------------------+
+                        | Assinatura (2 bytes)       |
+                        +----------------------------+
+                  
+	O BPB (BIOS Parameter Block)/EBPB (Extended BPB) contém parâmetros para descrever
+	como o sistema de arquivos está organizado no disco, ou seja, ele define a
+	"geometria" do sistema de arquivos (no caso, do FAT12).
+	
+	Os campos do BPB/EBPB são:
+
+		Offset  Tamanho  Campo
+		------  -------  ----------------------------
+		0x03    8        OEM Label
+		0x0B    2        Bytes por setor
+		0x0D    1        Setores por cluster
+		0x0E    2        Setores reservados
+		0x10    1        Número de FATs
+		0x11    2        Entradas root dir
+		0x13    2        Total de setores (small)
+		0x15    1        Media descriptor
+		0x16    2        Setores por FAT
+		0x18    2        Setores por trilha
+		0x1A    2        Número de cabeças
+		0x1C    4        Setores ocultos
+		0x20    4        Total de setores (large)
+
+		--- Extended BPB ---
+
+		0x24    2        Número do drive
+		0x26    1        Assinatura (0x29/0x41)
+		0x27    4        Volume ID
+		0x2B    11       Volume Label
+		0x36    8        Tipo do sistema
+		
+	No projeto, foi definido os seguintes parâmetros no BPB (veja no código do
+	bootloader):
+	
+		Offset  Campo                     valor
+		------  ------------------------  -----------------------------------
+		0x03    OEM Label                 "mkfs.fat"
+		0x0B    Bytes por setor           512
+		0x0D    Setores por cluster       1 setor (512 bytes por cluster)
+		0x0E    Setores reservados        1
+		0x10    Número de FATs            2 (FAT primária + cópia)
+		0x11    Entradas root dir         224
+		0x13    Total de setores (small)  2880 (2880 × 512 = 1.44 MB)
+		0x15    Media Descriptor          0xF0 (Disquete 3.5" 1.44MB)
+		0x16    Setores por FAT           9
+		0x18    Setores por trilha        18
+		0x1A    Número de cabeças         2
+		0x1C    Setores ocultos           0 (Não há partição anterior)
+		0x20    Total de setores (large)  0
+		
+		--- Extended BPB ---
+		
+		0x24    Número do driver          0 (0x00 = disquete, 0x80 = HD)
+		0x26    Assinatura                41 (0x29 - DOS 4.0+)
+		0x27    Volume ID                 0 (Número serial do volume)
+		0x2B    Volume Label              "sibolo     " (Nome do volume, 11 bytes)
+		0x36    Tipo de sistema           "FAT12   "
+	
+	Com base nos parâmetros do BPB do projeto, as estruturas da FAT deverão ocupar 
+	os seguintes setores na imagem de disco:
+	
+	    +---------------------+---------------------+---------------------+
+	    | REGIÃO              | NÚMERO DE SETORES   | SETORES OCUPADOS    |
+        +---------------------+---------------------+---------------------+
+        | Boot Sector (VBR)   | 1                   | Setor 0             |
+        +---------------------+---------------------+---------------------+
+        | FAT #1              | 9    (1)            | Setores 1 a 9       |
+        +---------------------+---------------------+---------------------+
+        | FAT #2 (cópia)      | 9                   | Setores 10 a 18     |
+        +---------------------+---------------------+---------------------+
+        | Root Directory      | 14   (2)            | Setores 19 a 32     |
+        +---------------------+---------------------+---------------------+
+        | Data Area           | 2847 (3)            | Setores 33 a 2879   |
+        +---------------------+---------------------+---------------------+
+
+		(1) Valor informado no offset 0x16 do BPB.
+	
+		(2) (224 * 32 ) / 512 = 14 setores.
+		
+		    O valor 224 é o número de entradas de Root Directory, informado 
+			no offset 0x11 do BPB. O valor 32 corresponde ao tamanho de uma 
+			entrada em Root Directory (32 bytes). O valor 512 corresponde 
+			ao tamanho de um setor, informado no offset 0x0B do BPB.
+		
+		(3) (2880 - 14 - 9 - 9 - 1) = 2847 setores.
+		
+		    O valor 2880 é o número total de setores da imagem de disco, informado
+			no offset 0x13 do BPB. Subtrai-se deste valor o número de setores
+			de Root Directory, FAT #1, FAT #2 e Boot Sector.
+							 
+	Representando a imagem de disco em FAT12 de forma linear:
+	
+	[B ][F1][F1][F1][F1][F1][F1][F1][F1][F1][F2][F2][F2][F2][F2][F2][F2][F2][F2]
+     0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15  16  17  18  
+	|1-||----------- 9 setores ------------||----------- 9 setores ------------|
+	  
+    [RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][DA..............DA] 
+	 19  20  21  22  23  24  25  26  27  28  29  30  31  32  33............2879
+	|--------------------- 14 setores ---------------------||-- 2847 setores --|
+
+    [B]  = Boot Sector (1 setor)
+    [F1] = FAT #1 (9 setores)
+    [F2] = FAT #2 (9 setores)
+    [RD] = Root Directory (14 setores)
+    [DA] = Data Area (2847 setores)
+
+
+	* FAT #1 (File Allocation Table):
+	
+	A tabela FAT é basicamente um vetor que:
+	
+		Para cada cluster -> Indica o próximo cluster da cadeia.
+		
+	ou seja, ela implementa uma lista encadeada de clusters para cada arquivo.
+	
+	Ela ocupa 9 setores, portanto:
+	
+		9 × 512 = 4608 bytes
+	
+	Cada entrada na tabela tem 12 bits, então:
+	
+		4608 bytes = 36864 bits
+		36864 / 12 = 3072 entradas
+		
+	Cada entrada corresponde a um cluster.
+	
+	Os cluster 0 e 1 são reservados. Clusters válidos começam em 2.
+ 
+ ==============================================================================
+*/
+
+
+
 
 /*
+ ==============================================================================
+ 
  Essa função:
 
    > Localiza onde está a entrada FAT12 de um cluster.
@@ -23,6 +281,7 @@
    
    > Preserva os bits do cluster vizinho.
    
+ ==============================================================================
 */
 void set_fat_entry(
     unsigned char *disk,
@@ -267,6 +526,8 @@ int set_root_entry(
 }
 
 
+
+
 /* 
  ==============================================================================
 
@@ -277,200 +538,6 @@ int set_root_entry(
  de 12 bits), um dos sistemas de arquivos mais antigos, utilizado principalmente 
  em disquetes e mídias de pequena capacidade (até cerca de 16 MB).
 
- A imagem gerada segue o layout clássico de um disquete (por exemplo, 1.44 MB), 
- contendo um volume FAT12 diretamente a partir do setor 0. Isso é necessário porque 
- o bootloader foi desenvolvido assumindo esse formato específico, incluindo a 
- geometria típica de disquetes e a ausência de particionamento.
-
- Diferentemente de discos rígidos e outros dipositivos de armazenamento com MBR 
- (Master Boot Record), onde o setor 0 contém uma tabela de partições e código
- que localiza a partição ativa, nesta abordagem não há esta tabela. Assim, o BIOS 
- carrega diretamente o setor de boot (VBR), simplificando o processo de boot e 
- eliminando a necessidade de localizar e encadear o carregamento a partir de uma 
- partição ativa.
- 
- O FAT12 organiza o disco em clusters (grupos de setores), e usa uma tabela chamada
- FAT (File Allocation Table) para encadear esses clusters.
- 
- Um volume FAT12 é dividido em regiões fixas:
- 
-                           +---------------------+
-                           | Boot Sector (VBR)   |
-                           +---------------------+
-                           | FAT #1              |
-                           +---------------------+
-                           | FAT #2 (cópia)      |
-                           +---------------------+
-                           | Root Directory      |
-                           +---------------------+
-                           | Data Area           |
-                           +---------------------+
-						   
- Onde:
- 
-    * Boot Sector (VBR - Volume Boot Record): 
-	
-	Primeiro setor de um volume ou partição, com 512 bytes. O setor de boot contém:
-	
-		> BPB
-
-		> Código do bootloader
-		
-		> Assinatura
-		
-	O código do bootloader é para o caso de um disco inicializável, como a imagem
-	de disco que será criada por esta função. Caso seja apenas um disco para armazenar
-	arquivos, normalmente é gravado um programa que mostra uma mensagem simples na 
-	tela no lugar.
-	
-	O diagrama abaixo, representa como é o setor de boot da imagem de disco gerada
-	por esta função:
-	
-                        +----------------------------+
-                        | Jump Instruction (3 bytes) |
-                        +----------------------------+
-                        | BPB (BIOS Parameter Block) |
-                        +----------------------------+
-                        | EBPB (Extended BPB)        |
-                        |----------------------------|
-						|                            |
-						|                            |
-						|                            |
-                        | Código do Bootloader       |
-						|                            |
-						|                            |
-						|                            |
-                        +----------------------------+
-                        | Assinatura (2 bytes)       |
-                        +----------------------------+
-                  
-	O BPB (BIOS Parameter Block)/EBPB (Extended BPB) contém parâmetros para descrever
-	como o sistema de arquivos está organizado no disco, ou seja, ele define a
-	"geometria" do sistema de arquivos (no caso, do FAT12).
-	
-	Os campos do BPB/EBPB são:
-
-		Offset  Tamanho  Campo
-		------  -------  ----------------------------
-		0x03    8        OEM Label
-		0x0B    2        Bytes por setor
-		0x0D    1        Setores por cluster
-		0x0E    2        Setores reservados
-		0x10    1        Número de FATs
-		0x11    2        Entradas root dir
-		0x13    2        Total de setores (small)
-		0x15    1        Media descriptor
-		0x16    2        Setores por FAT
-		0x18    2        Setores por trilha
-		0x1A    2        Número de cabeças
-		0x1C    4        Setores ocultos
-		0x20    4        Total de setores (large)
-
-		--- Extended BPB ---
-
-		0x24    2        Número do drive
-		0x26    1        Assinatura (0x29/0x41)
-		0x27    4        Volume ID
-		0x2B    11       Volume Label
-		0x36    8        Tipo do sistema
-		
-	No projeto, foi definido os seguintes parâmetros no BPB (veja no código do
-	bootloader):
-	
-		Offset  Campo                     valor
-		------  ------------------------  -----------------------------------
-		0x03    OEM Label                 "mkfs.fat"
-		0x0B    Bytes por setor           512
-		0x0D    Setores por cluster       1 setor (512 bytes por cluster)
-		0x0E    Setores reservados        1
-		0x10    Número de FATs            2 (FAT primária + cópia)
-		0x11    Entradas root dir         224
-		0x13    Total de setores (small)  2880 (2880 × 512 = 1.44 MB)
-		0x15    Media Descriptor          0xF0 (Disquete 3.5" 1.44MB)
-		0x16    Setores por FAT           9
-		0x18    Setores por trilha        18
-		0x1A    Número de cabeças         2
-		0x1C    Setores ocultos           0 (Não há partição anterior)
-		0x20    Total de setores (large)  0
-		
-		--- Extended BPB ---
-		
-		0x24    Número do driver          0 (0x00 = disquete, 0x80 = HD)
-		0x26    Assinatura                41 (0x29 - DOS 4.0+)
-		0x27    Volume ID                 0 (Número serial do volume)
-		0x2B    Volume Label              "sibolo     " (Nome do volume, 11 bytes)
-		0x36    Tipo de sistema           "FAT12   "
-	
-	Com base nos parâmetros do BPB do projeto, as estruturas da FAT deverão ocupar 
-	os seguintes setores na imagem de disco:
-	
-	    +---------------------+---------------------+---------------------+
-	    | REGIÃO              | NÚMERO DE SETORES   | SETORES OCUPADOS    |
-        +---------------------+---------------------+---------------------+
-        | Boot Sector (VBR)   | 1                   | Setor 0             |
-        +---------------------+---------------------+---------------------+
-        | FAT #1              | 9    (1)            | Setores 1 a 9       |
-        +---------------------+---------------------+---------------------+
-        | FAT #2 (cópia)      | 9                   | Setores 10 a 18     |
-        +---------------------+---------------------+---------------------+
-        | Root Directory      | 14   (2)            | Setores 19 a 32     |
-        +---------------------+---------------------+---------------------+
-        | Data Area           | 2847 (3)            | Setores 33 a 2879   |
-        +---------------------+---------------------+---------------------+
-
-		(1) Valor informado no offset 0x16 do BPB.
-	
-		(2) (224 * 32 ) / 512 = 14 setores.
-		
-		    O valor 224 é o número de entradas de Root Directory, informado 
-			no offset 0x11 do BPB. O valor 32 corresponde ao tamanho de uma 
-			entrada em Root Directory (32 bytes). O valor 512 corresponde 
-			ao tamanho de um setor, informado no offset 0x0B do BPB.
-		
-		(3) (2880 - 14 - 9 - 9 - 1) = 2847 setores.
-		
-		    O valor 2880 é o número total de setores da imagem de disco, informado
-			no offset 0x13 do BPB. Subtrai-se deste valor o número de setores
-			de Root Directory, FAT #1, FAT #2 e Boot Sector.
-							 
-	Representando a imagem de disco em FAT12 de forma linear:
-	
-	[B ][F1][F1][F1][F1][F1][F1][F1][F1][F1][F2][F2][F2][F2][F2][F2][F2][F2][F2]
-     0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15  16  17  18  
-	|1-||----------- 9 setores ------------||----------- 9 setores ------------|
-	  
-    [RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][RD][DA..............DA] 
-	 19  20  21  22  23  24  25  26  27  28  29  30  31  32  33............2879
-	|--------------------- 14 setores ---------------------||-- 2847 setores --|
-
-    [B]  = Boot Sector (1 setor)
-    [F1] = FAT #1 (9 setores)
-    [F2] = FAT #2 (9 setores)
-    [RD] = Root Directory (14 setores)
-    [DA] = Data Area (2847 setores)
-
-
-	* FAT #1 (File Allocation Table):
-	
-	A tabela FAT é basicamente um vetor que:
-	
-		Para cada cluster -> Indica o próximo cluster da cadeia.
-		
-	ou seja, ela implementa uma lista encadeada de clusters para cada arquivo.
-	
-	Ela ocupa 9 setores, portanto:
-	
-		9 × 512 = 4608 bytes
-	
-	Cada entrada na tabela tem 12 bits, então:
-	
-		4608 bytes = 36864 bits
-		36864 / 12 = 3072 entradas
-		
-	Cada entrada corresponde a um cluster.
-	
-	Os cluster 0 e 1 são reservados. Clusters válidos começam em 2.
-	
  ==============================================================================	 
 */
 
