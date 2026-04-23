@@ -405,7 +405,7 @@ int eject_disk(int disk_number) {
 }
 
 
-void print_header() {
+void print_header(const char *image_path) {
 	
 	system("cls");
 	
@@ -420,12 +420,14 @@ void print_header() {
 	
 	printf("%s", line);
 	
+	printf("[ Imagem: %s ]\n\n", image_path);
+	
 }
 
 
 int write_image_to_disk(const char *image_path) {
 	
-	print_header();
+	print_header(image_path);
 	
 	printf("Discos removíveis encontrados:\n\n");
 
@@ -497,7 +499,7 @@ int write_image_to_disk(const char *image_path) {
 
     scanf("%s", confirm);
 	
-	print_header();
+	print_header(image_path);
 
     if (strcmp(confirm, "CONFIRMAR") != 0) return 0;
 
