@@ -95,8 +95,8 @@
 ;           Endereço Físico = 0xF0000 + 0xFFF0
 ;           Endereço Físico = 0xFFFF0
 ;
-;      O endereço  físico de memória é chamado de reset vector, localizado próximo
-;      ao topo da memória endereçável em Modo Real (Real Mode).
+;      O endereço de memória 0xFFFF0 é chamado de reset vector, e está localizado 
+;      próximo ao topo da memória endereçável em Modo Real (Real Mode).
 ;
 ;                                 Memória RAM
 ;                         │                         │
