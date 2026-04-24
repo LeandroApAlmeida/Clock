@@ -2,19 +2,12 @@
 
 
 :: ----------------------------------------------------------------------------
-:: Seção de constantes
-:: ----------------------------------------------------------------------------
-
-set PATH=C:\mingw64\bin;%PATH%
-
-
-:: ----------------------------------------------------------------------------
 :: Compilação do código-fonte em C do FAT12 Formatter
 :: ----------------------------------------------------------------------------
 
 echo Compilando o codigo-fonte...
 
-gcc FAT12Formatter.c -o FAT12Formatter.exe
+gcc.exe FAT12Formatter.c -o FAT12Formatter.exe
 
 if %errorlevel% equ 0 (
     echo Compilacao bem-sucedida.

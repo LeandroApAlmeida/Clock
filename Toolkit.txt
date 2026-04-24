@@ -1,0 +1,5 @@
+https://www.qemu.org/
+
+https://www.nasm.us/
+
+https://github.com/skeeto/w64devkit/releases/download/v2.7.0/w64devkit-x64-2.7.0.7z.exe

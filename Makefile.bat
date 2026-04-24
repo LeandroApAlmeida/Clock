@@ -5,7 +5,7 @@
 :: Seção de constantes
 :: ----------------------------------------------------------------------------
 
-set NASM_PATH=NASM\nasm.exe
+set NASM_PATH=NASM.exe
 
 set OUTPUT_DIR=bin
 

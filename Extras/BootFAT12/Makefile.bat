@@ -5,9 +5,9 @@
 :: Seção de constantes
 :: ----------------------------------------------------------------------------
 
-set NASM=nasm
+set NASM=nasm.exe
 
-set QEMU=qemu-system-i386
+set QEMU=qemu-system-i386.exe
 
 set OUTPUT_DIR=bin
 
