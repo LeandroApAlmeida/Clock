@@ -29,10 +29,10 @@ del /Q /F bin\*
 
 
 :: ----------------------------------------------------------------------------
-:: Compilação de bootloader.asm com o montador NASM
+:: Montagem de bootloader.asm com o montador NASM
 :: ----------------------------------------------------------------------------
 
-echo Compilando "bootloader.asm"
+echo Montando "bootloader.asm"
 
 %NASM% -f bin -o %BOOTLOADER_BINARY% %BOOTLOADER_SOURCE%
 
@@ -40,10 +40,10 @@ if %errorlevel% neq 0 echo Erro ao gerar %TESTCODE_BINARY% && pause && exit
 
 
 :: ----------------------------------------------------------------------------
-:: Compilação de testcode.asm com o montador NASM
+:: Montagem de testcode.asm com o montador NASM
 :: ----------------------------------------------------------------------------
 
-echo Compilando "testcode.asm"
+echo Montando "testcode.asm"
 
 %NASM% -f bin -o %TESTCODE_BINARY% %TESTCODE_SOURCE%
 

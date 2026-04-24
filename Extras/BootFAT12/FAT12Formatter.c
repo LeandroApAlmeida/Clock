@@ -283,12 +283,8 @@
    
  ==============================================================================
 */
-void set_fat_entry(
-    unsigned char *disk,
-    uint32_t fat_offset,
-    int cluster,
-    int value
-) {
+
+void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int value) {
 	
 	// FAT12 usa entradas de 12 bits. Aplicando um and bit-a-bit com a máscara 
 	// 0x0FFF (0000 1111 1111 1111), garante que apenas os 12 bits menos significativos
@@ -386,11 +382,7 @@ void set_fat_entry(
 }
 
 
-int get_fat_entry(
-    unsigned char *disk,
-    uint32_t fat_offset,
-    int cluster
-) {
+int get_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster) {
 	
     uint32_t idx = fat_offset + (cluster * 3) / 2;
 
@@ -407,11 +399,7 @@ int get_fat_entry(
 }
 
 
-int find_free_cluster(
-    unsigned char *disk,
-    uint32_t fat_offset,
-    int max_cluster
-) {
+int find_free_cluster(unsigned char *disk, uint32_t fat_offset, int max_cluster) {
 	
     for (int c = 2; c <= max_cluster; c++) {
         
@@ -453,13 +441,8 @@ void format_83(char *out, const char *in) {
 }
 
 
-int set_root_entry(
-    unsigned char *disk,
-    uint32_t root_offset,
-    const char *name,
-    uint16_t cluster,
-    uint32_t size
-) {
+int set_root_entry(unsigned char *disk, uint32_t root_offset, const char *name,
+uint16_t cluster, uint32_t size) {
 	
     if (cluster < 2) return -1;
 
@@ -541,11 +524,8 @@ int set_root_entry(
  ==============================================================================	 
 */
 
-int create_fat12_disk_image(
-    const char *bootloader_path,
-    const char *testcode_path,
-    const char *output_path
-) {
+int create_fat12_disk_image(const char *bootloader_path, const char *testcode_path,
+const char *output_path) {
 	
     unsigned char *disk = calloc(DISK_SIZE, 1);
     
@@ -577,19 +557,17 @@ int create_fat12_disk_image(
     const uint32_t fat1_offset = reserved_sectors * SECTOR_SIZE;
     const uint32_t fat2_offset = fat1_offset + sectors_per_fat * SECTOR_SIZE;
 
-    const uint32_t root_offset =
-        (reserved_sectors + fats * sectors_per_fat) * SECTOR_SIZE;
+    const uint32_t root_offset = (reserved_sectors + fats * sectors_per_fat) * SECTOR_SIZE;
 
     const uint32_t root_size_bytes = root_entries * 32;
 
-    const uint32_t data_offset =
-        ((root_offset + root_size_bytes + SECTOR_SIZE - 1) / SECTOR_SIZE)
-        * SECTOR_SIZE;
+    const uint32_t data_offset = ((root_offset + root_size_bytes + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
 
     uint32_t total_sectors = DISK_SIZE / SECTOR_SIZE;
-    uint32_t data_sectors =
-        total_sectors - (reserved_sectors + fats * sectors_per_fat + (root_size_bytes / SECTOR_SIZE));
-    uint32_t max_cluster = data_sectors + 1;
+	
+    uint32_t data_sectors = total_sectors - (reserved_sectors + fats * sectors_per_fat + (root_size_bytes / SECTOR_SIZE));
+    
+	uint32_t max_cluster = data_sectors + 1;
 
     memset(&disk[fat1_offset], 0, sectors_per_fat * SECTOR_SIZE);
     memset(&disk[fat2_offset], 0, sectors_per_fat * SECTOR_SIZE);
@@ -599,7 +577,11 @@ int create_fat12_disk_image(
     disk[fat1_offset + 2] = 0xFF;
 
     file = fopen(testcode_path, "rb");
-    if (!file) { free(disk); return 1; }
+	
+    if (!file) { 
+		free(disk); 
+		return 1; 
+	}
 
     if (fseek(file, 0, SEEK_END) != 0) { 
         fclose(file);
@@ -608,6 +590,7 @@ int create_fat12_disk_image(
     }
 
     long file_size = ftell(file);
+	
     rewind(file);
 
     if (file_size <= 0) {

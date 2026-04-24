@@ -27,10 +27,10 @@ del /Q /F bin\*
 
 
 :: ----------------------------------------------------------------------------
-:: Compilação de bootloader.asm com o montador NASM
+:: Montagem de bootloader.asm com o montador NASM
 :: ----------------------------------------------------------------------------
 
-echo Compilando "bootloader.asm"
+echo Montando "bootloader.asm"
 
 %NASM_PATH% -f bin %BOOTLOADER_SOURCE% -o %BOOTLOADER_BINARY%
 
@@ -38,10 +38,10 @@ if %errorlevel% neq 0 echo Erro ao gerar %BOOTLOADER_BINARY% && pause && exit
 
 
 :: ----------------------------------------------------------------------------
-:: Compilação de kernel.asm com o montador NASM
+:: Montagem de kernel.asm com o montador NASM
 :: ----------------------------------------------------------------------------
 
-echo Compilando "kernel.asm"
+echo Montando "kernel.asm"
 
 %NASM_PATH% -f bin %KERNEL_SOURCE% -o %KERNEL_BINARY%
 
@@ -60,7 +60,9 @@ if %errorlevel% neq 0 echo Erro ao gerar %IMAGE% && pause && exit
 
 
 :: ----------------------------------------------------------------------------
-:: Teste da imagem como o Quemu
+:: Teste da imagem com o Quemu
 :: ----------------------------------------------------------------------------
+
+echo Iniciando QEMU...
 
 qemu-system-i386 -drive format=raw,file=%IMAGE% -machine pc,hpet=on -rtc base=localtime,clock=host -cpu max -device isa-debug-exit,iobase=0xf4,iosize=0x04
