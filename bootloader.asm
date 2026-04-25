@@ -6,11 +6,6 @@
 ; na memória um kernel simples, que fará uma única coisa: mostrar a hora e a
 ; data do sistema atualizada no monitor.
 ;
-; Nota:
-;
-; Toda a documentação deste projeto visa a descrição do funcionamento de um
-; processador x86 clássico, não um sistema moderno.
-;
 ; ═════════════════════════════════════════════════════════════════════════════
 
         
@@ -31,34 +26,39 @@
 ; quando o controle do programa for entregue para o bootloader. Mas ela não é a
 ; primeira instrução que o processador executa quando o computador é ligado.
 ;
-; Ao pressionar o botão liga/desliga do computador:
+; Como a organização de computadores muda bastante com o passar do tempo, vou 
+; tomar como um exemplo concreto um PC do início dos anos 2000 com BIOS legado 
+; para descrever o que acontece antes antes que o processador execute a primeira
+; instrução deste código.
+;
+; Ao pressionar o botão liga/desliga no painel do gabinete do PC:
 ;
 ;
 ; 1. A fonte de alimentação é ligada e começa a estabilizar suas tensões. Leva 
-;    entre 100ms e 500ms para estabilizar as tensões de 3.3V, 5V e 12V. Durante
-;    esse período, o sinal Power Good (PWR_OK) da fonte permanece inativo. Com 
-;    PWR_OK inativo, o chipset (ou o controlador de sistema) mantém o sinal de
-;    RESET# do processador em 0V (Low). Enquanto o sinal RESET# está em 0V (ativado),
-;    o processador é mantido em estado de reset. Ele está ligado, porém "congelado",
-;    não executando nenhuma instrução.
+;    em torno de 100ms a 500ms para que as tensões de 3.3V, 5V e 12V estejam estáveis. 
+;    Durante esse período, o sinal Power Good (PWR_OK) da fonte permanece inativo. 
+;    Com PWR_OK inativo, o chipset mantém o sinal de RESET# do processador ativado
+;    (colocando em Low, uma tensão de 0V). 
 ;
-;    Se o processador tentasse processar dados com uma voltagem instável e abaixo
+;    Enquanto o sinal RESET# está ativado, o processador é mantido em estado de
+;    reset. Ele está ligado, porém "congelado", não executando nenhuma instrução. 
+;    Se o processador tentasse processar dados com uma voltagem instável e abaixo 
 ;    do valor requerido, os transistores poderiam alternar estados de forma errática
-;    e ele executaria instruções corrompidas, levando a erros e travamento. Dessa 
+;    e ele executaria instruções corrompidas, levando a erros e travamento. Dessa
 ;    forma, o sinal RESET# funciona como uma "trava de segurança" elétrica, que
 ;    impede o processador de executar instruções espúrias devido à baixa tensão 
 ;    nos circuitos do computador (Brownout).
 ;
 ;    O chipset monitora o sinal Power Good. Quando a fonte indica que as tensões
 ;    estão estáveis, ativando este sinal, após um curto intervalo para estabilização
-;    dos osciladores (clock), ele desativa o sinal RESET# (High, uma tensão de 3.3V
-;    ou 5V), liberando o processador para executar instruções.
+;    dos osciladores (clock), ele desativa o sinal RESET# (colocando em High, uma
+;    tensão de 3.3V ou 5V), liberando o processador para executar instruções.
 ;
 ;
 ; 2. O sinal RESET# faz com que o processador entre em um estado inicial definido
-;    pela arquitetura x86. Assim que é liberado do reset, o processador:
+;    pela arquitetura x86. Assim, no momento que é liberado do reset:
 ;
-;      > Está em Modo Real (para compatibilidade com o Intel 8086).
+;      > Está em Modo Real (tecnicamente, modo compatível com Modo Real).
 ;    
 ;      > Flags (EFLAGS/FLAGS) estão em estados conhecidos:
 ;
@@ -74,16 +74,18 @@
 ;          CS = 0xF000
 ;          IP = 0xFFF0
 ;
-;      > Registrador Stack Pointer (SP) está em estado indefinido.
+;      > Registrador Stack Pointer (SP), registradores de uso geral (AX, BX, CX,
+;        DX), de índice (SI, DI, BP) e de segmento (DS, ES, SS) estão em estado
+;        indefinido.
 ;
-;      > Registradores de uso geral (AX, BX, CX, DX), de índice (SI, DI, BP)
-;        e de segmento (DS, ES, SS) estão em estado indefinido.
+;      > Prefetch queue (fila de pré-busca) invalidada (só é preenchida após o 
+;        primeiro fetch de instrução).
 ;
-;      > Prefetch queue inicia está vazia e é preenchida após o primeiro fetch de
-;        instrução.
-;
-;      Nota: Consulte a documentação de cada processador para verificar os 
-;      detalhes exatos da configuração inicial após o reset.
+;    --------------------------------------------------------------------------  
+;    Nota: É necessário consultar a documentação do processador específico que 
+;    vai analisar para saber os detalhes exatos da configuração inicial deste 
+;    após o reset.
+;    --------------------------------------------------------------------------
 ;
 ;    Com os registradores de Segmento de Código (CS) e Ponteiro de Instrução (IP)
 ;    configurados como CS = 0xF000 e IP = 0xFFF0, o primeiro endereço lógico
@@ -119,8 +121,8 @@
 ;          
 ;    Sintetizando o cálculo do par 0xF000:0xFFF0:
 ;
-;        Physical Address = 0xF000 × 0x10 + 0xFFF0
-;        Physical Address = 0xF0000 + 0xFFF0
+;        Physical Address = 0xF000 × 0x10 + 0xFFF0 ⇒
+;        Physical Address = 0xF0000 + 0xFFF0 ⇒
 ;        Physical Address = 0xFFFF0
 ;
 ;    Podemos representar o segmento apontado pelo registrador CS, chamado de Segmento 
@@ -130,13 +132,14 @@
 ;                               Memória RAM
 ;                           │                 │
 ;                           │                 │
-;                         ┬ │─────────────────│ 0xFFFFF ← Endereço Final do 
-;                         │ │                 │           segmento
-;                         │ │                 │      
-;                         │ │-----------------│ 0xFFFF0 ← IP (Offset)
+;                         ┬ │─────────────────│ 0xFFFFF ← Endereço Final do
+;                         │ │                 │           segmento (Offset 
+;                         │ │                 │           0xFFFF)
+;                         │ │                 │ 
+;                         │ │-----------------│ 0xFFFF0 ← IP (Offset 0xFFF0)
+;                         │ │                 │
 ;               Segmento  │ │                 │
 ;               de Código │ │                 │
-;                         │ │                 │
 ;                         │ │                 │
 ;                         │ │                 │
 ;                         │ │                 │
@@ -146,9 +149,9 @@
 ;                           │                 │           do segmento)
 ;                           │                 │
 ;
-;
-;    O endereço 0xFFFF0 calculado para 0xF000:0xFFF0 é chamado de reset vector,
-;    e está localizado próximo ao topo da memória endereçável em Modo Real.
+;    O endereço 0xFFFF0 calculado para 0xF000:0xFFF0 e apontado por IP é chamado
+;    de Reset Vector, e está localizado próximo ao topo da memória endereçável em 
+;    Modo Real.
 ;
 ;                               Memória RAM
 ;                       │                         │
@@ -166,35 +169,57 @@
 ;                       │                         │
 ;                       │                         │
 ;
-;    A partir desse ponto, o processador inicia o primeiro ciclo de fetch (busca
-;    de instrução), colocando esse endereço no barramento e solicitando a leitura
-;    da memória. Esse endereço não corresponde à RAM, mas sim a uma região mapeada 
-;    pela placa-mãe para um chip de memória não volátil (ROM), onde reside o firmware
-;    do sistema, conhecido como BIOS (Basic Input/Output System). Esse mapeamento
-;    segue o princípio de memória mapeada (memory-mapped), onde dispositivos são 
-;    acessados via endereços de memória (semelhante ao MMIO, descrito no código-fonte
-;    do Kernel). O chipset da placa-mãe é responsável por decodificar o endereço 
-;    colocado no barramento e selecionar a ROM de firmware quando o intervalo 
-;    correspondente ao BIOS é acessado.
+;    O processador inicia o primeiro ciclo de fetch colocando 0xFFFF0 no barramento
+;    e solicitando a leitura. Esse endereço não corresponde à RAM, mas sim a região
+;    do espaço de endereçamento mapeada para um dispositivo de memória não volátil
+;    (ROM/flash) onde reside o firmware do sistema, denominado de BIOS (Basic 
+;    Input/Output System).
 ;
-;    A primeira instrução encontrada no endereço 0xFFFF0 é tipicamente uma instrução
+;    Essa abordagem utiliza o conceito de memória mapeada (memory-mapped), no qual
+;    o espaço de endereçamento físico é compartilhado entre diferentes tipos de 
+;    recursos:
+;
+;      > Regiões de RAM convencional.
+;
+;      > Regiões mapeadas para firmware (como o BIOS).
+;
+;      > Regiões mapeadas para dispositivos de entrada/saída (MMIO).
+;
+;    No diagrama abaixo, uma representação do uso de memory-mapped:
+;
+;                               Memória RAM
+;                           │                 │
+;                           │                 │  /   ┌─────┐
+;                           │-----------------│ /   ═│     │═ 
+;                           │ Região mapeada  │/    ═│     │═     
+;                           │ para firmware   │     ═│     │═
+;                           │                 │\    ═│     │═
+;                           │-----------------│ \   ═│     │═
+;                           │                 │  \   └─────┘
+;                           │                 │
+;                           │                 │
+;                           │                 │  /   ┌─────┐
+;                           │-----------------│ /   ═│     │═ 
+;                           │ Região mapeada  │/    ═│     │═     
+;                           │ para dispositivo│     ═│     │═
+;                           │ de I/O (MMIO)   │\    ═│     │═
+;                           │-----------------│ \   ═│     │═
+;                           │                 │  \   └─────┘
+;                           │                 │
+;
+;    Quando o processador coloca um endereço no barramento, o hardware de controle 
+;    (chipset ou lógica integrada) decodifica este endereço e direciona o acesso ao 
+;    dispositivo ou memória correspondente.
+;
+;    A primeira instrução encontrada em Reset Vector é tipicamente uma instrução
 ;    de salto, por exemplo "jmp far F000:E05B", que redireciona a execução para 
 ;    outra área dentro da ROM onde o código principal do BIOS está localizado.
 ;    Isso ocorre porque o espaço disponível no topo da memória (16 bytes) é muito
 ;    pequeno para conter mais do que um ponto de entrada mínimo.
 ;
-;    Nesse estágio inicial, o processador opera em Modo Real (16-bit), com um 
-;    espaço de endereçamento limitado a 1 MB, sem suporte a proteção de memória
-;    ou recursos avançados. A memória A RAM ainda não foi testada nem configurada
-;    pelo firmware, e não há ainda uma pilha confiável configurada. O código inicial
-;    do BIOS é responsável por estabelecer um ambiente mínimo de execução, incluindo
-;    a configuração inicial do chipset, a detecção e inicialização da memória RAM
-;    e a preparação para a execução de rotinas mais complexas.
-;
 ;
 ; 3. Após a execução do JMP no reset vector, o processador sai da região mínima
-;    de 16 bytes e entra no ponto de entrada real do firmware BIOS na ROM (memória 
-;    não volátil mapeada no espaço de endereçamento).
+;    de 16 bytes e entra no ponto de entrada real do firmware BIOS na ROM.
 ;
 ;    Nesse momento, o registrador CS já foi recarregado (via far jump), e o cálculo 
 ;    de endereços volta ao comportamento normal do Modo Real:
@@ -244,7 +269,7 @@
 ;
 ;      > Inicialização do subsistema de temporização (timer do sistema).
 ;
-;      > Configuração do controlador de interrupções (PIC e/ou APIC).
+;      > Configuração do controlador de interrupções (PIC).
 ;
 ;      > Preparação da Interrupt Vector Table (IVT) em 0x0000:0x0000.
 ;
@@ -278,7 +303,7 @@
 ;        iniciais de hardware crítico).
 ;
 ;      > Configuração de parâmetros de sistema e tabelas de hardware (ex: memória 
-;        detectada, mapas de recursos, ACPI tables em sistemas mais novos).
+;        detectada, mapas de recursos).
 ;
 ;      > Exibição de mensagens de diagnóstico do POST e códigos de erro (beep codes
 ;        ou POST codes via porta 0x80).
@@ -303,10 +328,10 @@
 ;    MBR (Master Boot Record), o BIOS realiza a leitura do primeiro setor, chamado
 ;    de Setor MBR (primeiro setor lógico do dispositivo - LBA 0), que possui exatamente 
 ;    512 bytes. O setor MBR é então carregado para um endereço fixo de memória
-;    RAM, convencionalmente 0x7C00. O BIOS não interpreta o conteúdo desse setor
-;    em profundidade. Normalmente, ele apenas verifica se os dois últimos bytes
-;    contêm a assinatura de boot válida (Boot Signature), indicando que o dispositivo 
-;    é inicializável.
+;    RAM, convencionalmente 0x0000:0x7C00. O BIOS não interpreta o conteúdo desse 
+;    setor em profundidade. Normalmente, ele apenas verifica se os dois últimos 
+;    bytes contêm a assinatura de boot válida (Boot Signature), indicando que o
+;    dispositivo é inicializável.
 ;
 ;    Uma vez carregado o setor de boot na memória, o BIOS prepara o ambiente mínimo
 ;    de execução necessário para transferir o controle do programa. Isso inclui
@@ -2255,6 +2280,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 
 
 ; Referências:
+;
+; https://www.youtube.com/watch?v=u5kBwDZjfr4&t=38s
 ;
 ; https://en.wikipedia.org/wiki/Reset_vector
 ;
