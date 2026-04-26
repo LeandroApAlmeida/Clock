@@ -19,19 +19,63 @@
 
 ; =============================================================================
 ;
-; PRIMEIRA INSTRUÇÃO
+; PRIMEIRA INSTRUÇÃO DO BOOTLOADER
 ;
 ;
-; A instrução "jmp short start" é a primeira instrução executada pelo processador 
-; quando o controle do programa for entregue para o bootloader. Mas ela não é a
-; primeira instrução que o processador executa quando o computador é ligado.
+; A instrução "jmp short start" será a primeira instrução executada pelo processador 
+; quando o controle for transferido para o bootloader. Mas ela não é a primeira 
+; instrução que o processador executa quando o computador é ligado. Antes dela, 
+; pequenos trechos de código são executados em sequência, cada um responsável por 
+; carregar o próximo, em um processo incremental conhecido como bootstrapping.
+; Assim, o código do bootloader constitui um dos elos dessa cadeia de inicialização
+; do sistema, que dará "vida" ao computador. 
+;
+; -----------------------------------------------------------------------------
+; Nota: O termo "bootstrapping" tem origem na expressão inglesa do século XIX: 
+; "to pull oneself up by one's bootstraps" (puxar-se pelas alças das próprias 
+; botas), originalmente usada para descrever algo impossível. 
+;
+; Com o tempo, essa expressão passou a representar a ideia de iniciar algo com 
+; recursos mínimos e evoluir de forma autossuficiente.
+;
+; Na computação, descreve o processo de inicializar um sistema complexo a partir
+; de um estado mínimo, onde cada etapa carrega e prepara a próxima, em cadeia.
+; -----------------------------------------------------------------------------
+;
+; Em um sistema prático, o bootloader tem como função dar sequência ao carregamento 
+; do Sistema Operacional na memória. Para isso, ele pode ser divido em 2 ou mais
+; estágios (Multi-Stage Bootloader), pois em sistemas com firmware BIOS, são reservados
+; apenas 512 bytes para o estágio inicial, correspondentes ao número de bytes do 
+; setor MBR (Master Boot Record), o que pode não ser suficiente para dar início
+; às etapas subsequêntes de carga do kernel e carregamento do SO na memória.
+;
+; Neste projeto, o bootloader terá um único estágio, implementado no código-fonte
+; abaixo. Este bootloader cumpre com uma única função: carregar o kernel do relógio
+; na memória, que lerá a hora/data gravada no RTC (Real-Time Clock) pelo sistema
+; operacional hospedeiro, e atualizará na tela como se fosse um simples relógio
+; digital que se usa no pulso.
+;
+; Para chegar até a execução da instrução "jmp short start" do bootloader, o 
+; sistema passou por diversas etapas para a preparação do ambiente para a sua 
+; execução, que podem ser resumidas simplificadamente em:
+;
+;   1. Processador inicia no BIOS (Basic Input/Output System).
+;                                 
+;   2. BIOS executa o POST (Power-On Self-Test).
+;
+;   3. BIOS seleciona o dispositivo de boot.
+;
+;   4. BIOS carrega o setor MBR (Master Boot Record) do dispositivo na memória,
+;      que contém as instruções do bootloader. 
+;
+;   5. BIOS transfere o controle ao bootloader.
 ;
 ; Como a organização de computadores muda bastante com o passar do tempo, vou 
-; tomar como um exemplo concreto um PC do início dos anos 2000 com BIOS legado 
-; para descrever o que acontece antes que o processador execute a primeira instrução 
-; deste código.
+; usar como exemplo concreto para descrever o processo de inicialização (boot) 
+; um PC do início dos anos 2000 com BIOS legado. Este foi o primeiro computador
+; que eu tive, e no qual eu dei meus primeiros passos no aprendizado da computação.
 ;
-; Ao pressionar o botão liga/desliga no painel do gabinete do PC:
+; Neste computador, ao pressionar o botão liga/desliga no painel do gabinete:
 ;
 ;
 ; 1. A fonte de alimentação é ligada e começa a estabilizar suas tensões. Leva 
@@ -127,7 +171,7 @@
 ;
 ;    Podemos representar o segmento apontado pelo registrador CS, chamado de Segmento 
 ;    de Código, em um diagrama. Este segmento contém as instruções que o processador
-;    busca e executa (programa).
+;    busca e executa no ciclo de instrução (em inglês, Fetch-Decode-Execute Cycle).
 ;
 ;                               Memória RAM
 ;                           │                 │
@@ -188,7 +232,8 @@
 ;    é mapedada para firmware, podendo representar a região do ROM BIOS. A segunda
 ;    (em cima) é mapeada para um dispositivo de I/O (MMIO). Ela pode representar
 ;    a região do HPET, por exemplo, configurado no código do kernel para gerar
-;    interrupção de relógio  (IRQ0).
+;    interrupção de relógio (IRQ0). O computador que estamos analizando não possuia
+;    HPET, portanto, não poderíamos usar este componente como exemplo para ele.
 ;
 ;                               Memória RAM
 ;                           │                 │
@@ -261,7 +306,7 @@
 ;      > Desativa interrupções (CLI), garantindo controle total da CPU.
 ;
 ;      > Inicializa os registradores de segmento (CS já foi definido pelo reset,
-;        DS/ES/SS são reconfigurados para regiões conhecidas do firmware ou
+;        DS, ES, SS são reconfigurados para regiões conhecidas do firmware ou
 ;        memória temporária inicial).
 ;
 ;      > Inicializa um pilha (stack) temporária, normalmente em Cache-as-RAM (CAR)
@@ -2045,9 +2090,9 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; possa ocupar todo o setor MBR do dispositivo de armazenamento quando a imagem
 ; de disco do relógio for gravada neste. 
 ;
-; O setor MBR (Master Boot Record) é o primeiro setor físico de um disco particionado
-; (Setor 0 ou LBA 0)  e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos
-; um disco inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
+; O setor MBR (Master Boot Record) é o primeiro de um disco particionado (Setor 0 
+; ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos um disco 
+; inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
 ;
 ;
 ;              ├── MBR ──┤
