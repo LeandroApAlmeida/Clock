@@ -45,9 +45,10 @@
 ; Em um sistema prático, o bootloader tem como função dar sequência ao carregamento 
 ; do Sistema Operacional na memória. Para isso, ele pode ser divido em 2 ou mais
 ; estágios (Multi-Stage Bootloader), pois em sistemas com firmware BIOS, são reservados
-; apenas 512 bytes para o estágio inicial, correspondentes ao número de bytes do 
-; setor MBR (Master Boot Record), o que pode não ser suficiente para dar início
-; às etapas subsequêntes de carga do kernel e carregamento do SO na memória.
+; apenas 512 bytes para o estágio inicial do bootloader, correspondentes ao número
+; de bytes do setor MBR (Master Boot Record), o que pode não ser suficiente para 
+; dar início às etapas subsequêntes de carga do kernel e carregamento do SO na 
+; memória.
 ;
 ; Neste projeto, o bootloader terá um único estágio, implementado no código-fonte
 ; abaixo. Este bootloader cumpre com uma única função: carregar o kernel do relógio
@@ -55,9 +56,9 @@
 ; operacional hospedeiro, e atualizará na tela como se fosse um simples relógio
 ; digital que se usa no pulso.
 ;
-; Para chegar até a execução da instrução "jmp short start" do bootloader, o 
-; sistema passou por diversas etapas para a preparação do ambiente para a sua 
-; execução, que podem ser resumidas simplificadamente em:
+; Para chegar até a execução da instrução "jmp short start" do bootloader, o sistema 
+; passou por diversas etapas para a preparação do ambiente para a sua execução,
+; que podem ser resumidas simplificadamente em:
 ;
 ;   1. Processador inicia no BIOS (Basic Input/Output System).
 ;                                 
@@ -70,10 +71,11 @@
 ;
 ;   5. BIOS transfere o controle ao bootloader.
 ;
-; Como a organização de computadores muda bastante com o passar do tempo, vou 
-; usar como exemplo concreto para descrever o processo de inicialização (boot) 
-; um PC do início dos anos 2000 com BIOS legado. Este foi o primeiro computador
-; que eu tive, e no qual eu dei meus primeiros passos no aprendizado da computação.
+; Como a organização de computadores muda bastante com a evolução das tecnologias
+; de contrução de hardware, vou usar como exemplo concreto para descrever o processo
+; de inicialização do sistema (boot) um PC do início dos anos 2000 com BIOS legado. 
+; Este foi (não coincidentemente) o primeiro computador que eu tive, e no qual eu
+; dei meus primeiros passos no aprendizado da computação.
 ;
 ; Neste computador, ao pressionar o botão liga/desliga no painel do gabinete:
 ;
