@@ -533,7 +533,10 @@ const char *output_path) {
 
     FILE *file = fopen(bootloader_path, "rb");
     
-	if (!file) { free(disk); return 1; }
+	if (!file) { 
+		free(disk); 
+		return 1; 
+	}
 
     if (fread(disk, 1, SECTOR_SIZE, file) != SECTOR_SIZE) {
         fclose(file);

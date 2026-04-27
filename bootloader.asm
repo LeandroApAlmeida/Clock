@@ -22,13 +22,14 @@
 ; PRIMEIRA INSTRUÇÃO DO BOOTLOADER
 ;
 ;
-; A instrução "jmp short start" será a primeira instrução executada pelo processador 
-; quando o controle for transferido para o bootloader. Mas ela não é a primeira 
-; instrução que o processador executa quando o computador é ligado. Antes dela, 
-; pequenos trechos de código são executados em sequência, cada um responsável por 
-; carregar o próximo, em um processo incremental conhecido como bootstrapping.
-; Assim, o código do bootloader constitui um dos elos dessa cadeia de inicialização
-; do sistema, que dará "vida" ao computador. 
+; A instrução "jmp short start" será a primeira executada pelo processador quando
+; o controle for transferido para o bootloader. Mas ela não é a primeira instrução 
+; executada pelo processador quando o computador é ligado. Antes do controle passar 
+; para o bootloader, o firmware BIOS deve ser carregado na memória. Ele é responsável
+; pela preparação , , cada 
+; um responsável por carregar o próximo, em um processo incremental conhecido como 
+; bootstrapping. Assim, o minúsculo código deste bootloader constitui um dos elos 
+; dessa cadeia de inicialização do sistema. 
 ;
 ; -----------------------------------------------------------------------------
 ; Nota: O termo "bootstrapping" tem origem na expressão inglesa do século XIX: 
@@ -42,19 +43,17 @@
 ; de um estado mínimo, onde cada etapa carrega e prepara a próxima, em cadeia.
 ; -----------------------------------------------------------------------------
 ;
-; Em um sistema prático, o bootloader tem como função dar sequência ao carregamento 
-; do Sistema Operacional na memória. Para isso, ele pode ser divido em 2 ou mais
-; estágios (Multi-Stage Bootloader), pois em sistemas com firmware BIOS, são reservados
-; apenas 512 bytes para o estágio inicial do bootloader, correspondentes ao número
-; de bytes do setor MBR (Master Boot Record), o que pode não ser suficiente para 
-; dar início às etapas subsequêntes de carga do kernel e carregamento do SO na 
-; memória.
+; Em um sistema prático, normalmente o bootloader tem como função dar sequência 
+; ao carregamento do Sistema Operacional na memória. Para isso, ele pode ser divido 
+; em 2 ou mais estágios (Multi-Stage Bootloader), pois em sistemas com firmware 
+; BIOS, são reservados apenas 512 bytes para o estágio inicial do bootloader, 
+; correspondentes ao número de bytes lidos do setor MBR (Master Boot Record).
 ;
 ; Neste projeto, o bootloader terá um único estágio, implementado no código-fonte
 ; abaixo. Este bootloader cumpre com uma única função: carregar o kernel do relógio
 ; na memória, que lerá a hora/data gravada no RTC (Real-Time Clock) pelo sistema
 ; operacional hospedeiro, e atualizará na tela como se fosse um simples relógio
-; digital que se usa no pulso.
+; digital.
 ;
 ; Para chegar até a execução da instrução "jmp short start" do bootloader, o sistema 
 ; passou por diversas etapas para a preparação do ambiente para a sua execução,
@@ -72,7 +71,7 @@
 ;   5. BIOS transfere o controle ao bootloader.
 ;
 ; Como a organização de computadores muda bastante com a evolução das tecnologias
-; de contrução de hardware, vou usar como exemplo concreto para descrever o processo
+; de construção de hardware, vou usar como exemplo concreto para descrever o processo
 ; de inicialização do sistema (boot) um PC do início dos anos 2000 com BIOS legado. 
 ; Este foi (não coincidentemente) o primeiro computador que eu tive, e no qual eu
 ; dei meus primeiros passos no aprendizado da computação.
@@ -104,7 +103,7 @@
 ; 2. O sinal RESET# faz com que o processador entre em um estado inicial definido
 ;    pela arquitetura x86. Assim, no momento que é liberado do reset:
 ;
-;      > Está em Modo Real (tecnicamente, modo compatível com Modo Real).
+;      > Ele está em Modo Real (tecnicamente, modo compatível com Modo Real).
 ;    
 ;      > Flags (EFLAGS/FLAGS) estão em estados conhecidos:
 ;
@@ -195,7 +194,7 @@
 ;                           │                 │           do segmento)
 ;                           │                 │
 ;
-;    O endereço 0xFFFF0 calculado para 0xF000:0xFFF0 e apontado por IP, é chamado
+;    O endereço 0xFFFF0 calculado para 0xF000:0xFFF0, e apontado por IP, é chamado
 ;    de Reset Vector, e está localizado próximo ao topo da memória endereçável em 
 ;    Modo Real.
 ;
@@ -231,11 +230,8 @@
 ;
 ;    No diagrama abaixo, vemos uma representação simplificada da memória em um 
 ;    sistema que usa memory-mapped, com duas regiões mapeadas. A primeira (embaixo) 
-;    é mapedada para firmware, podendo representar a região do ROM BIOS. A segunda
-;    (em cima) é mapeada para um dispositivo de I/O (MMIO). Ela pode representar
-;    a região do HPET, por exemplo, configurado no código do kernel para gerar
-;    interrupção de relógio (IRQ0). O computador que estamos analizando não possuia
-;    HPET, portanto, não poderíamos usar este componente como exemplo para ele.
+;    é mapedada para firmware. A segunda (em cima) é mapeada para um dispositivo 
+;    de I/O (MMIO).
 ;
 ;                               Memória RAM
 ;                           │                 │
@@ -268,7 +264,7 @@
 ;
 ;    Port-Mapped I/O:
 ;
-;      > Usa espacos de endereço separados da RAM.
+;      > Usa espaços de endereço separados da RAM.
 ;
 ;      > Em vez de acessar dispositivos como se fossem memória, usa instruções 
 ;        especiais do x86:
@@ -283,7 +279,7 @@
 ;
 ;      > Teclado/8042: Portas 0x60/0x64.
 ;
-;      > PIC (Programmable Interrupt Controller): Portas 0x20/0x21
+;      > PIC (Programmable Interrupt Controller): Portas 0x20/0x21.
 ;    --------------------------------------------------------------------------
 ;
 ;    A primeira instrução encontrada em Reset Vector é tipicamente uma instrução
@@ -303,7 +299,8 @@
 ;    e teste) extremamente primária (early initialization), onde CPU, chipset 
 ;    e memória são colocados em um estado utilizável mínimo.
 ;
-;    A primeira ação do BIOS é estabilizar um ambiente de execução mínimo:
+;    A primeira ação do BIOS é estabilizar um ambiente de execução mínimo, para
+;    isso:
 ;
 ;      > Desativa interrupções (CLI), garantindo controle total da CPU.
 ;
@@ -412,9 +409,9 @@
 ;            Ajustes finos de temporização, garantindo operação correta no clock
 ;            nominal:
 ;
-;              * Para SDRAM: tempos finais de RAS/CAS/precharge.
+;              * Para SDRAM: Tempos finais de RAS/CAS/precharge.
 ;
-;              * Para DDR1: alinhamento básico de sinais de leitura/escrita.
+;              * Para DDR1: Alinhamento básico de sinais de leitura/escrita.
 ;
 ;          # MRS programming (Mode Register Set):
 ;
