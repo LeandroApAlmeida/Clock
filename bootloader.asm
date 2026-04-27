@@ -22,14 +22,16 @@
 ; PRIMEIRA INSTRUÇÃO DO BOOTLOADER
 ;
 ;
-; A instrução "jmp short start" será a primeira executada pelo processador quando
-; o controle for transferido para o bootloader. Mas ela não é a primeira instrução 
-; executada pelo processador quando o computador é ligado. Antes do controle passar 
-; para o bootloader, o firmware BIOS deve ser carregado na memória. Ele é responsável
-; pela preparação , , cada 
-; um responsável por carregar o próximo, em um processo incremental conhecido como 
-; bootstrapping. Assim, o minúsculo código deste bootloader constitui um dos elos 
-; dessa cadeia de inicialização do sistema. 
+; A instrução "jmp short start" será a primeira executada quando o controle for 
+; transferido para o bootloader. Mas ela não é a primeira instrução executada 
+; pelo processador quando o computador é ligado. 
+;
+; Antes de o controle passar para este programa, o firmware BIOS (Basic Input/Output
+; System), um pequeno código armazenado em memória não volátil, vai realizar a 
+; preparação do ambiente nas etapas iniciais do processo de boot (configuração 
+; da memória RAM, de dispositivos de entrada/saída, etc). Somente após a execução 
+; destas etapas  é que ele carrega o bootloader na memória e transfere o controle  
+; para o mesmo, num processo incremental conhecido na computação como bootstrapping. 
 ;
 ; -----------------------------------------------------------------------------
 ; Nota: O termo "bootstrapping" tem origem na expressão inglesa do século XIX: 
@@ -41,40 +43,47 @@
 ;
 ; Na computação, descreve o processo de inicializar um sistema complexo a partir
 ; de um estado mínimo, onde cada etapa carrega e prepara a próxima, em cadeia.
+;
+; Podemos ver isso acontecendo aqui. O BIOS executa as etapas iniciais para a
+; preparação do ambiente, e após isso, transfere o controle para o bootloader.
+; Este, por sua vez, prepara o sistema e inicia o carregamento de programas 
+; maiores e mais complexos na memória. Dessa forma, BIOS e bootloader são elos 
+; na cadeia de inicialização do sistema, que parte de um estado mínimo e vai
+; aumentando de complexidade progressivamente.
 ; -----------------------------------------------------------------------------
 ;
-; Em um sistema prático, normalmente o bootloader tem como função dar sequência 
+; Em um projeto prático, normalmente o bootloader tem como função dar sequência 
 ; ao carregamento do Sistema Operacional na memória. Para isso, ele pode ser divido 
 ; em 2 ou mais estágios (Multi-Stage Bootloader), pois em sistemas com firmware 
 ; BIOS, são reservados apenas 512 bytes para o estágio inicial do bootloader, 
-; correspondentes ao número de bytes lidos do setor MBR (Master Boot Record).
+; correspondente ao número de bytes do setor MBR (Master Boot Record) de um
+; dispositivo de armazenamento.
 ;
-; Neste projeto, o bootloader terá um único estágio, implementado no código-fonte
-; abaixo. Este bootloader cumpre com uma única função: carregar o kernel do relógio
-; na memória, que lerá a hora/data gravada no RTC (Real-Time Clock) pelo sistema
-; operacional hospedeiro, e atualizará na tela como se fosse um simples relógio
-; digital.
+; Neste projeto, o bootloader terá apenas 1 estágio, implementado no código-fonte
+; deste  arquivo. Este estágio cumpre com uma única função: carregar o kernel 
+; do relógio na memória, que lerá a hora/data gravada no RTC (Real-Time Clock) pelo 
+; sistema operacional hospedeiro, e atualizará na tela como se fosse um simples 
+; relógio digital.
 ;
-; Para chegar até a execução da instrução "jmp short start" do bootloader, o sistema 
-; passou por diversas etapas para a preparação do ambiente para a sua execução,
-; que podem ser resumidas simplificadamente em:
+; Nas próximas linhas desta documentação, vou descrever as etapas até a execução 
+; da instrução "jmp short start" neste código, que podem ser resumidas de forma 
+; simplificada em:
 ;
-;   1. Processador inicia no BIOS (Basic Input/Output System).
+;   1. Processador inicia no BIOS.
 ;                                 
 ;   2. BIOS executa o POST (Power-On Self-Test).
 ;
 ;   3. BIOS seleciona o dispositivo de boot.
 ;
-;   4. BIOS carrega o setor MBR (Master Boot Record) do dispositivo na memória,
-;      que contém as instruções do bootloader. 
+;   4. BIOS carrega o setor MBR do dispositivo na memória, que contém as instruções
+;      do bootloader. 
 ;
 ;   5. BIOS transfere o controle ao bootloader.
 ;
 ; Como a organização de computadores muda bastante com a evolução das tecnologias
-; de construção de hardware, vou usar como exemplo concreto para descrever o processo
-; de inicialização do sistema (boot) um PC do início dos anos 2000 com BIOS legado. 
-; Este foi (não coincidentemente) o primeiro computador que eu tive, e no qual eu
-; dei meus primeiros passos no aprendizado da computação.
+; de construção de hardware, vou usar como exemplo concreto um PC do início dos 
+; anos 2000 com BIOS legado. Este foi o primeiro computador que eu tive, e no qual
+; eu dei meus primeiros passos no aprendizado da computação.
 ;
 ; Neste computador, ao pressionar o botão liga/desliga no painel do gabinete:
 ;
