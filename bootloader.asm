@@ -30,8 +30,9 @@
 ; System), um pequeno código armazenado em memória não volátil, vai realizar a 
 ; preparação do ambiente nas etapas iniciais do processo de boot (configuração 
 ; da memória RAM, de dispositivos de entrada/saída, etc). Somente após a execução 
-; destas etapas  é que ele carrega o bootloader na memória e transfere o controle  
+; destas etapas é que ele carrega o bootloader na memória e transfere o controle  
 ; para o mesmo, num processo incremental conhecido na computação como bootstrapping. 
+;
 ;
 ; -----------------------------------------------------------------------------
 ; Nota: O termo "bootstrapping" tem origem na expressão inglesa do século XIX: 
@@ -52,10 +53,11 @@
 ; aumentando de complexidade progressivamente.
 ; -----------------------------------------------------------------------------
 ;
+;
 ; Em um projeto prático, normalmente o bootloader tem como função dar sequência 
 ; ao carregamento do Sistema Operacional na memória. Para isso, ele pode ser divido 
 ; em 2 ou mais estágios (Multi-Stage Bootloader), pois em sistemas com firmware 
-; BIOS, são reservados apenas 512 bytes para o estágio inicial do bootloader, 
+; BIOS são reservados apenas 512 bytes para o estágio inicial do bootloader, 
 ; correspondente ao número de bytes do setor MBR (Master Boot Record) de um
 ; dispositivo de armazenamento.
 ;
@@ -65,12 +67,16 @@
 ; sistema operacional hospedeiro, e atualizará na tela como se fosse um simples 
 ; relógio digital.
 ;
-; Nas próximas linhas desta documentação, vou descrever as etapas até a execução 
-; da instrução "jmp short start" neste código, que podem ser resumidas de forma 
-; simplificada em:
+;
+; ETAPAS DO PROCESSO DE BOOT EM UM COMPUTADOR COM BIOS LEGADO
+;
+;
+; As etapas do processo de boot antes da execução da instrução "jmp short start" 
+; neste código podem ser resumidas de forma simplificada:
+;
 ;
 ;   1. Processador inicia no BIOS.
-;                                 
+;
 ;   2. BIOS executa o POST (Power-On Self-Test).
 ;
 ;   3. BIOS seleciona o dispositivo de boot.
@@ -80,10 +86,11 @@
 ;
 ;   5. BIOS transfere o controle ao bootloader.
 ;
+;
 ; Como a organização de computadores muda bastante com a evolução das tecnologias
 ; de construção de hardware, vou usar como exemplo concreto um PC do início dos 
-; anos 2000 com BIOS legado. Este foi o primeiro computador que eu tive, e no qual
-; eu dei meus primeiros passos no aprendizado da computação.
+; anos 2000 para descrever de modo mais detalhado como funciona cada uma dessas
+; etapas.
 ;
 ; Neste computador, ao pressionar o botão liga/desliga no painel do gabinete:
 ;
@@ -112,9 +119,10 @@
 ; 2. O sinal RESET# faz com que o processador entre em um estado inicial definido
 ;    pela arquitetura x86. Assim, no momento que é liberado do reset:
 ;
-;      > Ele está em Modo Real (tecnicamente, modo compatível com Modo Real).
+;
+;      ● Ele está em Modo Real (tecnicamente, modo compatível com Modo Real).
 ;    
-;      > Flags (EFLAGS/FLAGS) estão em estados conhecidos:
+;      ● Flags (EFLAGS/FLAGS) estão em estados conhecidos:
 ;
 ;          IF = 0 → Interrupções mascaráveis desabilitadas.
 ;          TF = 0 → Sem debug step.
@@ -122,24 +130,26 @@
 ;
 ;        (demais bits em estado definido pelo hardware).
 ;
-;      > Registradores Segmento de Código (CS) e Ponteiro de Instrução (IP) estão
+;      ● Registradores Segmento de Código (CS) e Ponteiro de Instrução (IP) estão
 ;        com valores pré-definidos:
 ;
 ;          CS = 0xF000
 ;          IP = 0xFFF0
 ;
-;      > Registrador Stack Pointer (SP), registradores de uso geral (AX, BX, CX,
+;      ● Registrador Stack Pointer (SP), registradores de uso geral (AX, BX, CX,
 ;        DX), de índice (SI, DI, BP) e de segmento (DS, ES, SS) estão em estado
 ;        indefinido.
 ;
-;      > Prefetch queue (fila de pré-busca) invalidada (só é preenchida após o 
+;      ● Prefetch queue (fila de pré-busca) invalidada (só é preenchida após o 
 ;        primeiro fetch de instrução).
+;
 ;
 ;    --------------------------------------------------------------------------  
 ;    Nota: É necessário consultar a documentação do processador específico que 
 ;    vai analisar para saber os detalhes exatos da configuração inicial deste 
 ;    após o reset.
 ;    --------------------------------------------------------------------------
+;
 ;
 ;    Com os registradores de Segmento de Código (CS) e Ponteiro de Instrução (IP)
 ;    configurados como CS = 0xF000 e IP = 0xFFF0, o primeiro endereço lógico
@@ -150,38 +160,45 @@
 ;    o endereço apontado pelo par 0xF000:0xFFF0, o processador vai aplicar a
 ;    seguinte equação: 
 ;
+;
 ;                  Physical Address = Segment × 0x10 + Offset
+;
 ;
 ;    Onde:
 ;
-;        Physical Address: Endereço físico de memória calculado para o par Segment:Offset. 
-;        Este endereço é um valor de 20 bits em Modo Real clássico (8086).
+;        ● Physical Address: Endereço físico de memória calculado para o par 
+;          Segment:Offset. Este endereço é um valor de 20 bits em Modo Real clássico.
 ;
-;        Segment: Multiplicador utilizado para calcular o endereço físico de um 
-;        segmento. No par 0xF000:0xFFF0, ele é o valor de CS (0xF000). Para achar
-;        o endereço físico fazemos: 0xF000 × 0x10 = 0xF0000. Neste caso, 0xF0000
-;        é o endereço inicial do segmento.
+;        ● Segment: Multiplicador utilizado para calcular o endereço físico de um 
+;          segmento. No par 0xF000:0xFFF0, ele é o valor de CS (0xF000). Para achar
+;          o endereço físico fazemos: 0xF000 × 0x10 = 0xF0000. Neste caso, 0xF0000
+;          é o endereço inicial do segmento.
 ;
-;        Offset: É o deslocamento com relação ao endereço inicial do segmento,
-;        apontado por Segment. No par 0xF000:0xFFF0, ele é o valor de IP (0xFFF0). 
-;        Calculando o endereço físico do offset: 0xF0000 + 0xFFF0 = 0xFFFF0.
+;        ● Offset: É o deslocamento com relação ao endereço inicial do segmento,
+;          apontado por Segment. No par 0xF000:0xFFF0, ele é o valor de IP (0xFFF0). 
+;          Calculando o endereço físico do offset: 0xF0000 + 0xFFF0 = 0xFFFF0.
 ;
-;            Segment (CS × 0x10)                           Offset (IP)
-;            ↓                                             ↓
-;        ┌───────┬───────┬───────┬───────┬─   ─┬───────┬───────┬───────┬──                                       
-;        │#######│#######│#######│#######│ ... │#######│#######│#######│
-;        └───────┴───────┴───────┴───────┴─   ─┴───────┴───────┴───────┴──
-;        |0xF0000|0xF0001|0xF0002|0xF0003| ... |0xFFFEF|0xFFFF0|0xFFFF1|
+;
+;              Segment (CS × 0x10)                           Offset (IP)
+;              ↓                                             ↓
+;          ┌───────┬───────┬───────┬───────┬─   ─┬───────┬───────┬───────┬──                                       
+;          │#######│#######│#######│#######│ ... │#######│#######│#######│
+;          └───────┴───────┴───────┴───────┴─   ─┴───────┴───────┴───────┴──
+;          |0xF0000|0xF0001|0xF0002|0xF0003| ... |0xFFFEF|0xFFFF0|0xFFFF1|
 ;          
+;
 ;    Sintetizando o cálculo do par 0xF000:0xFFF0:
+;
 ;
 ;        Physical Address = 0xF000 × 0x10 + 0xFFF0 ⇒
 ;        Physical Address = 0xF0000 + 0xFFF0 ⇒
 ;        Physical Address = 0xFFFF0
 ;
+;
 ;    Podemos representar o segmento apontado pelo registrador CS, chamado de Segmento 
 ;    de Código, em um diagrama. Este segmento contém as instruções que o processador
 ;    busca e executa no ciclo de instrução (em inglês, Fetch-Decode-Execute Cycle).
+;
 ;
 ;                               Memória RAM
 ;                           │                 │
@@ -203,9 +220,11 @@
 ;                           │                 │           do segmento)
 ;                           │                 │
 ;
+;
 ;    O endereço 0xFFFF0 calculado para 0xF000:0xFFF0, e apontado por IP, é chamado
 ;    de Reset Vector, e está localizado próximo ao topo da memória endereçável em 
 ;    Modo Real.
+;
 ;
 ;                               Memória RAM
 ;                       │                         │
@@ -221,26 +240,29 @@
 ;                       │                         │
 ;                       │                         │
 ;
+;
 ;    O processador inicia o primeiro ciclo de fetch colocando 0xFFFF0 no barramento
-;    e solicitando a leitura. Esse endereço não corresponde à RAM, mas sim a região
-;    do espaço de endereçamento mapeada para um dispositivo de memória não volátil
-;    onde reside o firmware do sistema, denominado de BIOS (Basic Input/Output 
-;    System).
+;    e solicitando a leitura. Esse endereço não corresponde à RAM convencional, mas 
+;    sim a região do espaço de endereçamento mapeada para o dispositivo de memória
+;    não volátil onde reside o BIOS (memória ROM/EEPROM/Flash).
 ;
 ;    Essa abordagem utiliza o conceito de memória mapeada (memory-mapped), no qual
 ;    o espaço de endereçamento físico é compartilhado entre diferentes tipos de 
 ;    recursos:
 ;
-;      > Regiões de RAM convencional.
 ;
-;      > Regiões mapeadas para firmware (como o BIOS).
+;      ● Regiões de RAM convencional.
 ;
-;      > Regiões mapeadas para dispositivos de entrada/saída (MMIO).
+;      ● Regiões mapeadas para firmware (como o BIOS).
+;
+;      ● Regiões mapeadas para dispositivos de entrada/saída (MMIO).
+;
 ;
 ;    No diagrama abaixo, vemos uma representação simplificada da memória em um 
 ;    sistema que usa memory-mapped, com duas regiões mapeadas. A primeira (embaixo) 
 ;    é mapedada para firmware. A segunda (em cima) é mapeada para um dispositivo 
 ;    de I/O (MMIO).
+;
 ;
 ;                               Memória RAM
 ;                           │                 │
@@ -262,9 +284,11 @@
 ;                           │                 │
 ;                           │                 │
 ;
+;
 ;    Quando o processador coloca um endereço no barramento, o chipset decodifica
 ;    este endereço e direciona o acesso ao dispositivo ou a memória RAM correspondente,
 ;    de acordo com a região a que este pertence.
+;
 ;
 ;    --------------------------------------------------------------------------
 ;    Nota: Em x86, além do Memory-Mapped I/O (MMIO), a outra forma clássica de 
@@ -291,8 +315,9 @@
 ;      > PIC (Programmable Interrupt Controller): Portas 0x20/0x21.
 ;    --------------------------------------------------------------------------
 ;
+;
 ;    A primeira instrução encontrada em Reset Vector é tipicamente uma instrução
-;    de salto, por exemplo "jmp far F000:E05B", que redireciona a execução do 
+;    de salto, por exemplo, "jmp far F000:E05B", que redireciona a execução do 
 ;    programa para outra área da memória não-volátil onde o código principal do 
 ;    BIOS está localizado. Desta forma, o Reset Vector funciona como um "trampolim"
 ;    para esta outra parte do código do BIOS. Isso ocorre porque o espaço disponível
@@ -300,55 +325,192 @@
 ;    ponto de entrada mínimo.
 ;
 ;
-; 3. Após a execução do JMP no Reset Vector, o processador entra no ponto de 
-;    entrada real do firmware BIOS.
+; 3. Após a execução do JMP no Reset Vector, o processador entra no ponto de entrada
+;    real do firmware BIOS.
 ;
-;    Neste estágio inicial, o sistema ainda não está no POST (Power-On Self-Test)
-;    propriamente dito, mas em uma fase de bring-up (fase inicial de ativação 
-;    e teste) extremamente primária (early initialization), onde CPU, chipset 
-;    e memória são colocados em um estado utilizável mínimo.
+;    Neste estágio inicial, o sistema ainda não está no POST propriamente dito, 
+;    mas em uma fase de bring-up (fase inicial de ativação e teste) extremamente
+;    primária, chamada de early initialization, onde CPU, chipset e memória são 
+;    colocados em um estado utilizável mínimo.
 ;
-;    A primeira ação do BIOS é estabilizar um ambiente de execução mínimo, para
+;    A primeira ação do BIOS é estabilizar um ambiente de execução mínimo. Para
 ;    isso:
 ;
-;      > Desativa interrupções (CLI), garantindo controle total da CPU.
 ;
-;      > Inicializa os registradores de segmento (CS já foi definido pelo reset,
+;      ● Desativa interrupções (CLI), garantindo controle total da CPU.
+;
+;      ● Inicializa os registradores de segmento (CS já foi definido pelo reset,
 ;        DS, ES, SS são reconfigurados para regiões conhecidas do firmware ou
 ;        memória temporária inicial).
 ;
-;      > Inicializa um pilha (stack) temporária, normalmente em Cache-as-RAM (CAR)
-;        ou SRAM interna do chipset, antes da DRAM estar disponível.
+;      ● Inicializa uma pilha (stack) temporária antes da DRAM estar disponível.
+;        Neste estágio, a memória principal ainda não foi inicializada, o que 
+;        impõe fortes restrições ao ambiente de execução.
+;     
+;        ----------------------------------------------------------------------
+;        Nota: Embora algumas plataformas já utilizassem Cache-as-RAM (CAR) para 
+;        prover uma pilha temporária, essa técnica não era universal em sistemas 
+;        x86 no início dos anos 2000.
+;     
+;        Em muitas implementações de BIOS, o código de early initialization precisava
+;        operar com recursos extremamente limitados, recorrendo a estratégias como:
+;     
+;          > Uso mínimo de stack (às vezes praticamente inexistente), evitando 
+;            instruções como CALL/RET e qualquer dependência de empilhamento.
+;     
+;          > Código altamente linear, com fluxo simples e poucas ou nenhuma subrotina,
+;            frequentemente "inlined" manualmente.
+;     
+;          > Uso intensivo de registradores da CPU como pseudo-variáveis, por 
+;            serem o único meio de armazenamento totalmente confiável nesse 
+;            estágio.
+;     
+;          > Uso restrito e cuidadoso de regiões de memória endereçáveis, que 
+;            podem responder de forma consistente após configuração mínima do 
+;            chipset (ex: áreas baixas de memória ou janelas específicas habilitadas).
+;     
+;        Observação: Antes da inicialização do controlador de memória, não há 
+;        garantia de que acessos à DRAM sejam válidos ou estáveis. Qualquer uso 
+;        de memória nesse estágio depende fortemente do comportamento específico 
+;        do hardware.
+;        ----------------------------------------------------------------------
+;     
+;     
+;    Antes mesmo do processador começar a executar no reset vector (FFFF0h), o 
+;    chipset já se encontra em um estado inicial bem definido (strap / reset state).
 ;
-;    --------------------------------------------------------------------------
-;    Nota: Neste ponto a DRAM ainda não está treinada nem confiável. Todo código 
-;    inicial executa em ROM ou CAR.
-;    --------------------------------------------------------------------------
+;    Neste estado:
 ;
-;    O chipset encontra-se em estado de reset/strap, no qual:
 ;
-;      > BIOS ROM já está mapeada por decode fixo de hardware. Graças a isso que
-;        o processador conseguiu executar o endereço 0xFFFF0 da primeira instrução
-;        (Reset Vector) antes de o chipset estar totalmente configurado.
+;      ● A lógica de decodificação fixa (Fixed Decode) encontra-se ativa, sem 
+;        necessidade de configuração por software. Foi isso que permitiu o fetch
+;        de instruções a partir da ROM do BIOS no Reset Vector.
 ;
-;      > I/O legacy (port-mapped I/O) já está funcional via southbridge. O x86 
-;        tem I/O via portas, ou seja, acessos de 8/16/32 bits a endereços como 
-;        0x60 (teclado) ou 0x64 (controlador 8042). O southbridge disponibiliza 
-;        esses endereços mesmo antes da DRAM estar inicializada.
+;        Regiões tipicamente mapeadas neste estágio são:
 ;
-;      > PCI Configuration Space vai estar acessível via registradores CF8/CFC 
-;        (0xCF8 = endereço, 0xCFC = dados). O BIOS precisa enumerar dispositivos 
-;        PCI mesmo antes da RAM estar pronta. Ele consegue ler Vendor ID, Device
-;        ID, BARs e configurar MMIO/I/O sem depender da memória principal.
+;          > 0xF0000 – 0xFFFFF → BIOS ROM (obrigatório).
+
+;          > 0xC0000 – 0xDFFFF → Option ROMs (ex: VGA, RAID, NIC).
 ;
-;      > DRAM ainda não possui refresh, training ou timings válidos. Qualquer 
-;        tentativa de escrever/ler dados na RAM pode corromper informações. Por 
-;        isso, o BIOS depende de ROM ou CAR até que a memória esteja estabilizada.
+;          > 0xA0000 – 0xBFFFF → VGA legacy (framebuffer / text mode window)
 ;
-;    --------------------------------------------------------------------------
-;    Importante: PCI config space não depende de RAM, mas depende de host bridge/
-;    chipset já operacional.
-;    --------------------------------------------------------------------------
+;      ● O subsistema de I/O legado (port-mapped I/O) já se encontra funcional
+;        através do southbridge. O modelo de I/O do x86 permite acesso direto a
+;        dispositivos por meio das instruções IN e OUT, operando sobre portas de
+;        8, 16 ou 32 bits (dependendo da implementação).
+;
+;        Exemplos de portas acessíveis neste estágio:
+;
+;          > 0x60 / 0x64  → Controlador de teclado (8042).
+;
+;          > 0x20 / 0x21  → Controlador de interrupções (PIC master).
+;
+;          > 0xA0 / 0xA1  → Controlador de interrupções (PIC slave).
+;
+;          > 0x40–0x43    → Timer programável (PIT).
+;
+;          > 0x70 / 0x71  → CMOS / RTC.
+;
+;          > 0x80         → Porta de diagnóstico (POST code).
+;
+;        Observação: Apesar de acessíveis, muitos dispositivos ainda não estão
+;        configurados pelo BIOS ainda.
+;
+;      ● O espaço de configuração PCI (PCI Configuration Space) já está acessível
+;        por meio do mecanismo padrão baseado nas portas 0xCF8 (CONFIG_ADDRESS)
+;        e 0xCFC (CONFIG_DATA). Isso permite ao BIOS acessar registradores de
+;        configuração de dispositivos PCI, como Vendor ID, Device ID e BARs,
+;        sem depender da memória principal. No entanto, a enumeração completa
+;        do barramento PCI geralmente ocorre apenas após a inicialização básica
+;        da memória.
+;
+;      ● A memória DRAM ainda não está inicializada. O controlador de memória,
+;        localizado no northbridge, ainda não foi configurado com os parâmetros 
+;        adequados (timings, refresh, organização). Como resultado, acessos à 
+;        RAM não são confiáveis neste estágio. Por isso, a execução do BIOS 
+;        ocorre diretamente a partir da ROM, podendo em alguns casos utilizar 
+;        mecanismos temporários dependentes do chipset até que a memória principal 
+;        esteja operacional.
+;
+;
+;    A partir deste estado inicial, o BIOS inicia a configuração progressiva do
+;    chipset, com o objetivo de tornar o sistema plenamente utilizável. Essa
+;    configuração ocorre por meio de acessos diretos aos registradores internos, 
+;    expostos principalmente via espaço de configuração PCI.
+;
+;    O primeiro passo consiste em identificar o chipset presente no sistema.
+;    Para isso, o BIOS realiza leituras no espaço de configuração PCI do dispositivo
+;    localizado no barramento 0, dispositivo 0, função 0 (host bridge). A leitura
+;    dos registradores Vendor ID e Device ID permite determinar o modelo exato
+;    do northbridge, e consequentemente quais registradores e sequências de
+;    inicialização devem ser utilizadas.
+;
+;    Uma vez identificado o chipset, o BIOS passa a configurar o northbridge, 
+;    responsável pela comunicação entre o processador, a memória principal e o 
+;    barramento PCI.
+;
+;
+;      ● Inicialmente, o BIOS configura os registradores de controle de memória,
+;        definindo o mapeamento dos bancos de DRAM no espaço de endereçamento
+;        físico. Isso inclui o estabelecimento dos limites de cada banco e a
+;        organização da memória instalada.
+;
+;      ● Em seguida, são programados os parâmetros básicos do controlador de
+;        memória, como latência CAS, tempos de acesso (RAS-to-CAS, precharge)
+;        e taxa de refresh, geralmente com base nas informações lidas do SPD
+;        (Serial Presence Detect) dos módulos de memória. As informações de 
+;        SPD são obtidas via barramento SMBus, normalmente disponibilizado pelo
+;        southbridge, o que requer uma configuração mínima
+;        prévia deste componente.
+;
+;      ● O BIOS também configura as janelas de endereçamento reservadas, como
+;        regiões destinadas a memória de vídeo (por exemplo, 0xA0000–0xBFFFF),
+;        áreas de ROM e regiões potencialmente utilizadas para memória mapeada
+;        de dispositivos (MMIO).
+;
+;      ● A interface entre o processador e o barramento PCI é então ajustada,
+;        garantindo que ciclos de acesso a dispositivos PCI sejam corretamente
+;        encaminhados pelo northbridge.
+;
+;
+;    Em seguida, o BIOS inicia a configuração do southbridge, responsável pelos
+;    dispositivos de entrada/saída e periféricos legados.
+;
+;
+;      ● O controlador de interrupções (PIC) é colocado em um estado conhecido,
+;        com máscaras de interrupção apropriadas, preparando o sistema para o
+;        uso posterior de interrupções de hardware.
+;
+;      ● O temporizador programável (PIT) é inicializado com valores padrão,
+;        permitindo a geração de eventos periódicos utilizados pelo sistema.
+;
+;      ● O controlador de DMA é resetado, garantindo que não existam operações
+;        pendentes ou estados inconsistentes.
+;
+;      ● O controlador de teclado (8042) é inicializado, e pode posteriormente
+;        ser utilizado, entre outras funções, para o controle da linha A20.
+;
+;      ● O BIOS também acessa o CMOS/RTC para recuperar informações persistentes,
+;        como data, hora e parâmetros de configuração armazenados pelo usuário,
+;        incluindo a ordem de boot.
+;
+;
+;    Adicionalmente, o BIOS pode habilitar recursos fundamentais do sistema:
+;
+;
+;      ● A linha A20 pode ser ativada, permitindo acesso à memória acima de 1 MB,
+;        removendo a limitação de endereçamento compatível com o 8086.
+;
+;      ● O cache do processador (L1/L2) pode ser habilitado ou ajustado, melhorando
+;        significativamente o desempenho das execuções subsequentes.
+;
+;
+;    Ao final desta fase, o chipset encontra-se suficientemente configurado para
+;    permitir a inicialização da memória principal (DRAM) de forma confiável.
+;    Embora o sistema ainda não esteja completamente operacional, todos os
+;    mecanismos fundamentais de comunicação entre CPU, memória e dispositivos
+;    já estão estabelecidos, possibilitando o avanço para as próximas etapas do
+;    processo de inicialização.
 ;
 ;    A inicialização da memória ocorre em estágios:
 ;
@@ -469,9 +631,6 @@
 ;    Essas estruturas marcam a transição para ambiente Modo Real funcional, ainda
 ;    dentro do contexto de early POST initialization.
 ;
-;    Após isso, o firmware pode executar testes de memória, inicializar PIC, PIT,
-;    vídeo e outros dispositivos legados de forma segura.
-;
 ;    Com CPU em execução, stack funcional e DRAM estabilizada, o BIOS entra no 
 ;    POST, que é a continuação estruturada do processo de bring-up.
 ;
@@ -500,7 +659,7 @@
 ;
 ;      > Enumeração PCI (PCI bus scan).
 ;
-;          * atribuição de MMIO.
+;          * Atribuição de MMIO.
 ;          * I/O space allocation.
 ;          * IRQ routing.
 ;
@@ -2509,6 +2668,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; https://www.youtube.com/watch?v=u5kBwDZjfr4&t=38s
 ;
 ; https://en.wikipedia.org/wiki/Reset_vector
+;
+; https://stackoverflow.com/questions/63159663/how-does-bios-initialize-dram
 ;
 ; https://en.wikipedia.org/wiki/Master_boot_record#SIG
 ;
