@@ -781,6 +781,14 @@ nop                               ; bootloader. Como a imagem gerada está em
 ; seja formalmente garantida como livre, ela é geralmente segura para usar como 
 ; pilha.
 ;
+;
+; -----------------------------------------------------------------------------
+; Nota: Pilha é uma área de memória usada automaticamente pelo processador para 
+; armazenar dados temporários, como endereços de retorno e registradores, seguindo 
+; a lógica LIFO (last in, first out).
+; -----------------------------------------------------------------------------
+;
+;
 ; Para localizar a região da pilha na memória, veja no diagrama abaixo como esta
 ; estará organizada no momento em que o bootloader é carregado pelo BIOS e começa
 ; a executar:
@@ -1065,7 +1073,7 @@ set_vga_text_mode:
 	                              ; Mode).
 	
     mov al, 0x03                  ; Define o modo de texto como 0x03 (80 colunas
-	                              ; 25 linhas). 								  
+	                              ; 25 linhas).							  
 	
     int 0x10                      ; Executa a interrupção de vídeo do BIOS, para
 	                              ; aplicar o modo de vídeo selecionado.
@@ -1098,7 +1106,7 @@ set_vga_text_mode:
 ;                         │-------------------------│ 0x9FC00
 ;                         │ Free                    │
 ;                      ┬  │─────────────────────────│ 0x8E00
-;                      │  │ Kernel (5120 bytes)     │ 
+;                      │  │ Kernel (5120 bytes) ####│ 
 ;                      ┴  │─────────────────────────│ 0x7E00
 ;                         │ Bootloader              │          
 ;                         │-------------------------│ 0x7C00
@@ -1377,8 +1385,8 @@ load_kernel_image:
 	
     inc bx                        ; Inclementa o índice da cópia da assinatura.
 	
-    dec dx                        ; Decrementa o contador de pares bytes restantes a 
-	                              ; comparar.
+    dec dx                        ; Decrementa o contador de pares bytes restantes 
+	                              ; a comparar.
 	
     jnz .cmp_bytes_loop           ; Instrução "Jump if Not Zero". Ele verifica o
 	                              ; Zero Flag (ZF):
@@ -1423,7 +1431,7 @@ load_kernel_image:
 ; Essa é uma etapa fundamental do boot, pois enquanto o processador está rodando
 ; em Modo Real, possui limitações severas de endereçamento (~1 MB sem extensões 
 ; como A20). O kernel precisará acessar memória que está acima de 1 MB, para 
-; configurar a pilha e acessar hardware MMIO.
+; configurar a pilha e acessar hardware via MMIO.
 ;
 ; O segmento de código do kernel em Modo Protegido foi configurado como 32-bit, 
 ; fazendo com que as instruções usem operandos de 32 bits por padrão (configuramos 
@@ -1569,11 +1577,11 @@ enter_pmode_and_jump:
 ; Neste caso, exibe uma mensagem informando que houve erro, e também solicitando 
 ; para teclar ENTER para encerrar a execução e desligar o computador. 
 ; 
-; Como estou usando funções de APM (Advanced Power Management) para desligar, em 
-; hardware real não iria funcionar nas máquinas pós anos 1990/2000. Porém no QEMU
-; ela funciona. Então, no caso de uma eventual falha no carregamento do kernel 
-; pelo QEMU, permite o desligamento da máquina virtual só pressionando a tecla 
-; ENTER.
+; Como estou usando funções de APM (Advanced Power Management) para desligar o
+; computador em Modo Real, em hardware real não iria funcionar nas máquinas pós 
+; anos 1990/2000. Porém no QEMU ela funciona. Então, no caso de uma eventual falha 
+; no carregamento do kernel pelo QEMU, permite o desligamento da máquina virtual 
+; só pressionando a tecla ENTER.
 ;
 ; =============================================================================
 
@@ -1945,7 +1953,7 @@ print_string:
 ;
 ;       Segmento funciona como:
 ;
-;       16-bit (modo real/protegido) ou 32-bit (modo protegido).
+;       16-bit (Modo Real) ou 32-bit (Modo Protegido).
 ;
 ;       O comportamento depende do bit D/B (bit 54).
 ;
@@ -2283,9 +2291,10 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; possa ocupar todo o setor MBR do dispositivo de armazenamento quando a imagem
 ; de disco do relógio for gravada neste. 
 ;
-; O setor MBR (Master Boot Record) é o primeiro de um disco particionado (Setor 0 
-; ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos um disco 
-; inicializável o bootloader deve, obrigatóriamente, ser gravado neste setor.
+; O setor MBR (Master Boot Record) é o primeiro setor de um disco particionado 
+; (Setor 0 ou LBA 0) e tem 512 bytes. Em sistemas com firmware BIOS, para criarmos
+; um disco inicializável o bootloader deve, obrigatóriamente, ser gravado neste
+; setor.
 ;
 ;
 ;              ├── MBR ──┤
@@ -2400,8 +2409,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; o bootloader ainda não vai funcionar. O binário deve preencher todos os 512 bytes 
 ; do setor MBR e faltam ainda 111 bytes para conseguir este alinhamento (512-401=111). 
 ; Além disso, o setor MBR deve receber uma assinatura (Boot Signature) nos dois 
-; bytes finais. Sem fazer estes ajustes, o BIOS é incapaz de carregar o programa
-; do bootloader após a etapa de POST (Power-On Self-Test).
+; bytes finais. Sem fazer estes ajustes, o BIOS carrega o setor, mas não o reconhece 
+; como inicializável após a etapa de POST (Power-On Self-Test).
 ;
 ; As duas linhas finais do assembly após este comentário, portanto, instruem o 
 ; montador a fazer os ajustes necessários no arquivo binário do bootloader. Cada
@@ -2428,6 +2437,45 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;     erro "No bootable device found", ou pulará para o próximo dispositivo na 
 ;     sequência de boot, se houver algum, para tentar inicializar o sistema a partir
 ;     dele. 
+;
+;
+;     -------------------------------------------------------------------------
+;     A arquitetura x86 utiliza o formato de armazenamento de dados chamado 
+;     Little-Endian. Esse formato define a ordem em que os bytes de valores
+;     multi-byte (como words, dwords, etc.) são organizados na memória.
+;
+;     Em Little-Endian, o byte menos significativo (LSB - Least Significant Byte)
+;     é armazenado no menor endereço de memória, enquanto o byte mais significativo
+;     (MSB - Most Significant Byte) é armazenado no maior endereço.
+;
+;     Considerando o valor de Boot Signature acima:
+;
+;       dw 0xAA55
+;
+;     Separando em seus bytes contituintes:
+;
+;       MSB (byte alto) = 0xAA
+;       LSB (byte baixo) = 0x55
+;
+;     Temos então na memória, nos offsets 510 e 511:
+;
+;       Offset 510 → 0x55
+;       Offset 511 → 0xAA
+;
+;     Isso ocorre porque:
+;
+;       1. A diretiva "dw" (define word) instrui o montador a gravar um valor de
+;          16 bits (2 bytes).
+;
+;       2. O valor a ser gravado é 0xAA55.
+;
+;       3. O montador (NASM), seguindo o padrão Little-Endian da arquitetura x86,
+;          grava primeiro o byte menos significativo (0x55), seguido do mais
+;          significativo (0xAA).
+;
+;     Na prática, os bytes são gravados "invertidos" com relação ao que está
+;     escrito no código-fonte.
+;     -------------------------------------------------------------------------
 ;
 ;
 ; Depois que o montador NASM executar as etapas de ajuste, o arquivo binário do 
@@ -2551,8 +2599,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ;   FA → Opcode para a instrução Clear Interrupt Flag (cli). Esta instrução desabilita
-;   as instruções mascaráveis (mouse, teclado, timer, disco, etc). Ela faz isso alterando 
-;   a flag IF (bit 9) do registrador EFLAGS para 0. 
+;   as interrupções mascaráveis (mouse, teclado, timer, disco, etc). Ela faz isso
+;   alterando a flag IF (bit 9) do registrador EFLAGS para 0. 
 ;
 ;
 ;   88 → Opcode para a instrução MOV r/m8, r8. Esta instrução move um valor de 8
@@ -2568,7 +2616,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;   em DL pela instrução mov (byte 0xEF do endereço 0x7CEF).
 ;
 ;
-;   EF → Parte alta (High Byte) do endereço de memória (byte 0x7C do endereço 0x7CEF).
+;   7C → Parte alta (High Byte) do endereço de memória (byte 0x7C do endereço 0x7CEF).
 ;
 ;
 ; Representando os mesmos bytes acima em formato binário, que é o formato "natural"
@@ -2685,14 +2733,43 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 								  ; 511.
 
 
-					  
-						  
+
+			  
 ; =============================================================================
 ;
 ; IMAGEM DE DISCO EM RAW FORMAT 
 ;
 ;
-; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
+; Uma imagem RAW é uma representação binária direta de um disco. Neste tipo de 
+; imagem não há:
+;
+;
+;   ● Cabeçalhos.
+;
+;   ● Compressão.
+;
+;   ● Metadados.
+;
+;   ● Estrutura de sistema de arquivos (como FAT ou EXT).
+;
+;
+; A imagem deste projeto será organizada da seguinte forma quando gravada no 
+; dispositivo de armazenamento:
+;
+;
+;   ● Setor 0 (512 bytes): Bootloader.
+;
+;   ● Setores 1 a 9 (5120 bytes): Kernel do relógio.
+; 
+;
+; No diagrama a seguir vemos uma representação desta imagem 
+; 
+;
+;  ├ Bootloader ┤ ├────────────────────────── Kernel ──────────────────────────
+; ┌──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
+; │   Setor 0    │   Setor 1    │   Setor 2    │   Setor 3    │   Setor 1    │    
+; └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─ 
+;
 ; =============================================================================
 
 
@@ -2718,3 +2795,10 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ; https://en.wikipedia.org/wiki/BIOS
 ;
+; https://wiki.osdev.org/GDT_Tutorial
+;
+; https://wiki.osdev.org/Global_Descriptor_Table
+;
+; https://wiki.osdev.org/Segment_Selector
+;
+; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
