@@ -866,7 +866,7 @@ nop                               ; bootloader. Como a imagem gerada está em
 ;
 ;     push eax         (Empilha o valor de EAX)
 ;
-;     jmp push_loop    (Volta para o início do loop).
+;     jmp push_loop    (Volta para o início do loop)
 ;
 ;
 ; com o assembly atual será impossível acontecer este tipo de erro.
@@ -916,12 +916,13 @@ start:
 ;
 ;
 ; Configura o modo de texto VGA 3H, com 80 colunas x 25 linhas, 16 cores de texto
-; e 8 cores de fundo. Este já é o modo padrão usado pelo BIOS, mas reaplicamos
+; e 8 cores de fundo. Este já é o modo padrão configurado pelo BIOS, mas reaplicamos
 ; a configuração aqui.
 ;
-; Este modo de texto usa a região de memória que inicia no endereço 0xB8000 e
-; termina no endereço 0xB8F9F. Cada caractere gravado nesta região ocupa 2 bytes,
-; num total de 2.000 caracteres (80 colunas x 25 linhas).
+; Este modo de texto usa a região de memória mapeada (MMIO) que inicia no endereço 
+; 0xB8000 e termina no endereço 0xB8F9F. Cada caractere gravado no dispositivo 
+; VGA/EGA mapeado ocupa 2 bytes, num total de 2.000 caracteres (80 colunas x 25 
+; linhas).
 ;
 ; Os bytes que compõem cada caractere no Modo 3h são:
 ;
