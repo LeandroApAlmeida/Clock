@@ -1,3 +1,6 @@
+Ferramentas Utilizadas:
+
+
 https://www.qemu.org/
 
 https://www.nasm.us/

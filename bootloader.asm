@@ -928,8 +928,7 @@ start:
 ;
 ; Este modo de texto usa a região de memória mapeada (MMIO) que inicia no endereço 
 ; 0xB8000 e termina no endereço 0xB8F9F. Cada caractere gravado no dispositivo 
-; VGA/EGA mapeado ocupa 2 bytes, num total de 2.000 caracteres (80 colunas x 25 
-; linhas).
+; VGA mapeado ocupa 2 bytes, num total de 2.000 caracteres (80 colunas x 25 linhas).
 ;
 ; Os bytes que compõem cada caractere no Modo 3h são:
 ;
@@ -2778,6 +2777,36 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;   ● Tabela de partições.
 ;
 ;
+; O programa do bootloader tem que saber explicitamente em quais setores está gravado 
+; o kernel para carregá-lo na memória usando o antigo modo CHS (Cylinder-Head-Sector).
+; 
+; Neste caso específico, o kernel começa a partir de Cilindro 0, Cabeça 0, Setor 2,
+; e ocupa 10 setores. Como visto no código da rotina load_kernel_image, são exatamente 
+; estas as informações passadas na chamada à função 0x02 (função Read Sectors From
+; Drive) do BIOS:
+;
+;
+;    mov ah, 0x02                  ; Define o valor 0x02 em AH (função Read Sectors 
+;	                               ; From Drive)            
+;	
+;    mov dl, [drive_number]        ; Lê o número do drive na memória e coloca em
+;	                               ; DL.
+;								  
+;    mov al, 10                    ; Define o número de setores a serem lidos.
+;	
+;    mov ch, 0                     ; Define o número do cilindro.
+;	
+;    mov dh, 0                     ; Define o número da cabeça.
+;	
+;    mov cl, 2                     ; Define o setor inicial a ser lido do disco.
+;	
+;    mov bx, bp                    ; Define o endereço inicial na memória onde vai
+; 	                               ; carregar o kernel (0x7E00).
+;								  
+;    int 0x13                      ; Chama a interrupção de disco do BIOS para
+;	                               ; carregar o kernel na memória.
+;
+;
 ; Para gerar uma imagem em Raw Format, passamos os seguintes comandos no terminal
 ; do Windows (CMD):
 ;
@@ -2868,15 +2897,16 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ; Para o dispositivo de armazenamento voltar a ter uma estrutura de diretórios 
 ; e arquivos novamente, basta formatá-lo como FAT-32, NTFS ou outro sistema de
-; arquivos conhecido de sua escolha, no próprio Windows ou Linux.
+; arquivos conhecido, no próprio Windows ou Linux.
 ;
 ; Como um projeto complementar a este, visando mostrar como uma imagem formatada
-; como um sistema de arquivos é gerada, consulte os arquivos no subdiretório
+; com um sistema de arquivos é gerada, consulte os arquivos no subdiretório
 ; Extras\BootFAT12, em que eu uso um bootloader de uma página do github que lê
 ; arquivos em FAT12. Para isso, eu crio um utilitário em linguagem C que gera
 ; uma imagem de disco formatada como FAT12, denominado de "FAT12Formatter.c".
 ; Dentro do subdiretório Extras\BootFAT12\doc eu preparei uma apresentação
-; explicando como o utilitário gera a imagem de disco formatada.
+; explicando como este utilitário gera a imagem de disco formatada, e noções
+; gerais sobre o sistema de arquivos FAT12.
 ; -----------------------------------------------------------------------------
 ;
 ;
@@ -2890,45 +2920,5 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Substitua "clock.img" pelo path do arquivo de imagem de disco.
-;
-; =============================================================================
-
-
-
-
-; =============================================================================
-;
-; Referências:
-;
-;
-; https://www.youtube.com/watch?v=u5kBwDZjfr4&t=38s
-;
-; https://en.wikipedia.org/wiki/Reset_vector
-;
-; https://stackoverflow.com/questions/63159663/how-does-bios-initialize-dram
-;
-; https://docs.freebsd.org/en/books/arch-handbook/boot/
-;
-; https://en.wikipedia.org/wiki/Master_boot_record#SIG
-;
-; https://www.nasm.us/doc/
-;
-; https://en.wikipedia.org/wiki/Volume_boot_record
-;
-; https://en.wikipedia.org/wiki/File_Allocation_Table
-;
-; https://en.wikipedia.org/wiki/Bootloader
-;
-; https://en.wikipedia.org/wiki/BIOS
-;
-; https://wiki.osdev.org/GDT_Tutorial
-;
-; https://wiki.osdev.org/Global_Descriptor_Table
-;
-; https://wiki.osdev.org/Segment_Selector
-;
-; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
-;
-; http://justsolve.archiveteam.org/wiki/Raw_disk_image
 ;
 ; =============================================================================
