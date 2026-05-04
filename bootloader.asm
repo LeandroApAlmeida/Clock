@@ -75,7 +75,8 @@
 ; neste código podem ser resumidas de forma simplificada:
 ;
 ;
-;   1. Processador inicia no BIOS.
+;   1. CPU inicia execução no reset vector, que aponta para firmware BIOS mapeado
+;      na memória.
 ;
 ;
 ;   2. BIOS executa o POST (Power-On Self-Test).
@@ -242,9 +243,9 @@
 ;                       │                         │
 ;                       │─────────────────────────│ 0xFFFFF ← Topo da memória
 ;                       │                         │           endereçável em
-;                       │ Reset Vector (16 bytes) │           Modo Real (1MB)
+;                       │                         │           Modo Real (1MB)
 ;                       │                         │ 
-;                       │-------------------------│ 0xFFFF0 ← IP (Offset 0xFFF0)
+;                       │-------------------------│ 0xFFFF0 ← IP (Reset Vector)
 ;                       │                         │
 ;                       │                         │
 ;                       │                         │
@@ -273,7 +274,7 @@
 ;    No diagrama abaixo, vemos uma representação simplificada da memória em um 
 ;    sistema que usa memory-mapped, com duas regiões mapeadas. A primeira (embaixo) 
 ;    é mapedada para firmware. A segunda (em cima) é mapeada para um dispositivo 
-;    de I/O (MMIO).
+;    de I/O (MMIO). As demais regiões são memória convencional.
 ;
 ;
 ;                               Memória RAM

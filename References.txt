@@ -30,3 +30,13 @@ https://wiki.osdev.org/Segment_Selector
 https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
  
 http://justsolve.archiveteam.org/wiki/Raw_disk_image
+
+https://www.bbc.co.uk/bitesize/guides/zbfny4j/revision/5
+
+https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O
+
+https://www.geeksforgeeks.org/computer-organization-architecture/memory-mapped-i-o-and-isolated-i-o/
+
+https://wiki.osdev.org/Memory_Map_(x86)
+
+https://www.opsschool.org/boot_process_101.html?utm_source=chatgpt.com
