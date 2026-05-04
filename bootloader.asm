@@ -1998,7 +1998,7 @@ print_string:
 ;     > 1 → Granularidade em páginas. O Limite é contado em páginas de 4 KB.
 ;
 ;
-; SELETORES DE SEGMENTO
+; SELETOR DE SEGMENTO
 ;
 ;
 ; Em Modo Protegido, os registradores de segmento (CS, DS, SS, etc.) não armazenam
