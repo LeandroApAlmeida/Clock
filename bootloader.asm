@@ -71,7 +71,7 @@
 ; ETAPAS DO PROCESSO DE BOOT EM UM COMPUTADOR COM BIOS LEGADO
 ;
 ;
-; As etapas do processo de boot antes da execução da instrução "jmp short start" 
+; As etapas do processo de boot antes da execução da instrução "jmp short start"
 ; neste código podem ser resumidas de forma simplificada:
 ;
 ;
@@ -366,7 +366,7 @@
 ;        impõe fortes restrições ao ambiente de execução. A pilha pode ser
 ;        estabelecida em regiões alternativas como Cache-as-RAM ou áreas de memória 
 ;        temporária fornecidas pelo chipset.
-;     
+;
 ;
 ;        ----------------------------------------------------------------------
 ;        Nota: Embora algumas plataformas já utilizassem Cache-as-RAM (CAR) para 
@@ -396,7 +396,7 @@
 ;        do hardware.
 ;        ----------------------------------------------------------------------
 ;     
-;     
+;
 ;    Quando o processador começa a executar no reset vector (FFFF0h), o chipset
 ;    se encontra em um estado de reset (strap / reset state).
 ;
@@ -410,7 +410,7 @@
 ;        Regiões tipicamente mapeadas neste estágio são:
 ;
 ;          > 0xF0000 – 0xFFFFF → BIOS ROM (obrigatório).
-
+;
 ;          > 0xC0000 – 0xDFFFF → Option ROMs (ex: VGA, RAID, NIC).
 ;
 ;          > 0xA0000 – 0xBFFFF → VGA legacy (framebuffer / text mode window)
@@ -716,9 +716,8 @@
 ;          * POST codes (I/O port 0x80).
 ;
 ;
-;    A ordem exata varia conforme o fabricante (AMI, Award, Phoenix),
-;    mas este fluxo representa de forma fiel o comportamento típico
-;    de BIOS x86 legado.
+;    A ordem exata varia conforme o fabricante (AMI, Award, Phoenix), mas este 
+;    fluxo representa de forma fiel o comportamento típico de BIOS x86 legado.
 ;
 ;
 ; 4. Ao final do POST, com CPU, memória RAM, subsistema de vídeo e controladores
@@ -752,7 +751,7 @@
 ;    código do bootloader assume total controle da próxima etapa do processo de 
 ;    inicialização, que normalmente envolve o carregamento de um bootloader mais 
 ;    complexo (no caso de um bootloader de múltiplos estágios) ou diretamente do 
-;    kernel do sistema operacional.
+;    kernel do sistema operacional. No caso deste projeto, será o kernel do relógio.
 ;
 ; 
 ; Como descrito genéricamente acima, há uma série de etapas que são realizadas 
@@ -950,7 +949,7 @@ start:
 ;                         ↓                    ↓
 ;                   0   001   1111          00100000  
 ;                  |B| |BC | | FC |        | CP437  |
-; 
+;
 ;
 ;   ● Byte baixo (CP437): Valor 0x20 (0b00100000).
 ;
@@ -1514,7 +1513,9 @@ load_kernel_image:
 ;
 ; Ao executar a instrução Far Jump em modo protegido:
 ;
+;
 ;                              jmp 0x08:0x7E20
+;
 ;
 ; passamos o seletor do Descritor do Segmento de Código do Kernel (0x08) e o 
 ; endereço do ponto de entrada do kernel, kernel_entry (0x7E20). Com base nestes
@@ -1815,7 +1816,7 @@ print_string:
 ;   Para calcular o endereço físico usando o endereço de base, aplica-se a função: 
 ;
 ;     Endereço físico = Base + Offset
-;   
+;
 ;
 ; ● Limite (Segment Limit)
 ;
@@ -2095,11 +2096,13 @@ print_string:
 ; Neste projeto definimos a GDT em Flat Memory Model (modelo plano). O Flat Model 
 ; é uma forma simplificada de usar a GDT em que:
 ;
+;
 ;   > Todos os segmentos têm base = 0x00000000.
 ;
 ;   > O limite cobre toda a memória endereçável em Modo Protegido (≈ 4GB).
 ;
 ;   > Código e dados compartilham o mesmo espaço linear.
+;
 ;
 ; Nesse modo a segmentação ainda existe, mas é "neutralizada", fazendo o sistema 
 ; funcionar como se fosse uma memória contínua (linear). Isso simplifica muito
@@ -2121,14 +2124,14 @@ print_string:
 ;
 ; ● Descritor Nulo (Índice 0x00)
 ;
-;   > Bytes do descritor 
+;   > Bytes do descritor:
 ;
 ;     00 00 00 00 00 00 00 00
 ;
 ;
 ; ● Descritor do Segmento de Código do Kernel (Índice 0x08)
 ;
-;   > Bytes do descritor 
+;   > Bytes do descritor:
 ; 
 ;     FF FF 00 00 00 9A CF 00
 ;
@@ -2168,7 +2171,7 @@ print_string:
 ;
 ; ● Descritor do Segmento de Dados do Kernel (Índice 0x10)
 ;
-;   > Bytes do descritor 
+;   > Bytes do descritor:
 ; 
 ;     FF FF 00 00 00 92 CF 00
 ;
@@ -2233,8 +2236,8 @@ gdt_ptr:                          ; Estrutura que aponta para a GDT
 ; SEÇÃO DE DADOS DO BOOTLOADER
 ;
 ; =============================================================================
-	
-	
+
+
 drive_number:                     ; Variável de 1 byte que guarda o número do
                                   ; drive de boot para operações de Leitura/Escrita
 	db 0					      ; de disco.
@@ -2276,7 +2279,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 	db 0x54,0x76,0x98,0xBA,0xDC,0xFE,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88
 	db 0x99,0xAA,0xBB,0xCC
 
-	  
+  
 
 
 ; =============================================================================
@@ -2720,8 +2723,8 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    └──────────────────────────┴───────────────────┴───────────────────┘
 ;
 ;
-; (Para mais informações sobre o formato do arquivo binário consultar 
-;  https://www.nasm.us/doc/nasm09.html#section-9.1.1)
+; (Para mais informações sobre o formato do arquivo binário gerado pelo NASM, 
+;  consultar https://www.nasm.us/doc/nasm09.html#section-9.1.1)
 ;
 ; =============================================================================
 
@@ -2734,17 +2737,37 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 
 
 
-			  
+
 ; =============================================================================
 ;
 ; IMAGEM DE DISCO EM RAW FORMAT 
 ;
 ;
-; Uma imagem RAW é uma representação binária direta de um disco. Neste tipo de 
-; imagem não há:
+; Neste projeto cria-se uma imagem em Raw Format, copiando nela o arquivo binário 
+; do bootloader e o arquivo binário do kernel, nesta ordem.
 ;
 ;
-;   ● Cabeçalhos.
+;    Bootloader                              Kernel
+;  ├─────────────┤ ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
+; ┌───────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
+; │ Setor 0 (MBR) │   Setor 1    │   Setor 2    │   Setor 3    │   Setor 4    │    
+; └───────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─ 
+;
+;  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
+; ─┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
+;  │   Setor 5    │   Setor 6    │   Setor 7    │   Setor 8    │   Setor 9    │    
+; ─┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─
+;
+;  ─ ─ ─ ─ ─ ─ ─ ┤
+; ─┬──────────────┐ 
+;  │   Setor 10   │   
+; ─┴──────────────┘
+;
+;
+; Nesta imagem não há:
+;
+;
+;   ● Cabeçalho (BPB/EBPB).
 ;
 ;   ● Compressão.
 ;
@@ -2752,28 +2775,131 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;   ● Estrutura de sistema de arquivos (como FAT ou EXT).
 ;
-;
-; A imagem deste projeto será organizada da seguinte forma quando gravada no 
-; dispositivo de armazenamento:
+;   ● Tabela de partições.
 ;
 ;
-;   ● Setor 0 (512 bytes): Bootloader.
+; Para gerar uma imagem em Raw Format, passamos os seguintes comandos no terminal
+; do Windows (CMD):
 ;
-;   ● Setores 1 a 9 (5120 bytes): Kernel do relógio.
-; 
 ;
-; No diagrama a seguir vemos uma representação desta imagem 
-; 
+;              copy /b "bootloader.bin"+"kernel.bin" "clock.img"
 ;
-;  ├ Bootloader ┤ ├────────────────────────── Kernel ──────────────────────────
-; ┌──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
-; │   Setor 0    │   Setor 1    │   Setor 2    │   Setor 3    │   Setor 1    │    
-; └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─ 
+;
+; Onde:
+;
+;
+;   "bootloader.bin": Path do arquivo binário do bootloader.
+;
+;
+;   "kernel.bin": Path do arquivo binário do kernel do relógio.
+;
+;
+;   "clock.img": Path do arquivo de imagem de disco a ser criado.
+;
+;
+; Para gravar o arquivo de imagem de disco criado num dispositivo de armazenamento,
+; deve-se abrir o terminal do Windows com privilégios de administrador e digitar 
+; os seguintes comandos:
+;
+;
+;                       WriteDiskImage.exe "clock.img" "E"
+;
+;
+; Onde:
+;
+;
+;   WriteDiskImage.exe: Path do programa Gravador de Imagem de Disco no diretório
+;   Extras\WriteDiskImage deste projeto.
+;
+;
+;   "clock.img": Path do arquivo de imagem de disco.
+;
+;
+;   "E": Letra da unidade de armazenamento que receberá a imagem de disco.
+;
+;
+; No terminal de comandos, deve-se seguir as instruções do programa de gravação:
+;
+;
+;   1. "Gravar a imagem apagará o disco. Continuar? (s/n): " → Digite "s"
+;      para prosseguir.
+;
+;
+;   2. "Digite CONFIRMAR para continuar: " → Digite a palavra CONFIRMAR para 
+;      gravar a imagem de disco no dispositivo.
+;
+;
+; Após gravada a imagem de disco, a tela do terminal terá o seguinte aspecto:
+;
+;
+; =============================================================================
+;
+;                          Gravador de Imagem de Disco, Versão 1.0
+;
+;                          Desenvolvido por Leandro Ap. de Almeida
+;
+; =============================================================================
+;
+;
+; [ Disco: "E:", Imagem: "D:\2. SOFTWARE\4. C�DIGO REFER�NCIA\Clock\bin\clock.img" ]
+;
+;
+; Gravando imagem:
+;
+; [██████████████████████████████████████████████████] 100.00% (5632/5632 bytes)
+;
+; Gravação concluída.
+;
+; O disco foi ejetado com sucesso.
+;
+; C:\Windows\System32>
+;
+;
+; Feito isso, é possível dar boot em um computador com firmware BIOS legado 
+; usando o dispositivo gravado com a imagem.
+;
+;
+; -----------------------------------------------------------------------------
+; Nota: Ao gravar a imagem de disco em Raw Format no dispositivo de armazenamento, 
+; as informações de formatação contidas nele serão apagadas. Com isso, o Windows/
+; Linux passa a não reconhecê-lo mais, indicando que o dispositivo não tem um 
+; sistema de arquivos conhecido. Este é um comportamento esperado, e não indica 
+; qualquer problema físico com o mesmo.
+;
+; Para o dispositivo de armazenamento voltar a ter uma estrutura de diretórios 
+; e arquivos novamente, basta formatá-lo como FAT-32, NTFS ou outro sistema de
+; arquivos conhecido de sua escolha, no próprio Windows ou Linux.
+;
+; Como um projeto complementar a este, visando mostrar como uma imagem formatada
+; como um sistema de arquivos é gerada, consulte os arquivos no subdiretório
+; Extras\BootFAT12, em que eu uso um bootloader de uma página do github que lê
+; arquivos em FAT12. Para isso, eu crio um utilitário em linguagem C que gera
+; uma imagem de disco formatada como FAT12, denominado de "FAT12Formatter.c".
+; Dentro do subdiretório Extras\BootFAT12\doc eu preparei uma apresentação
+; explicando como o utilitário gera a imagem de disco formatada.
+; -----------------------------------------------------------------------------
+;
+;
+; Para testar a imagem usando o Qemu, deve-se abrir o terminal do Windows e 
+; passar os seguintes comandos, numa única linha:
+;
+;
+;        qemu-system-i386.exe -drive format=raw,file="clock.img" 
+;        -machine pc,hpet=on -rtc base=localtime,clock=host -cpu 
+;        max -device isa-debug-exit,iobase=0xf4,iosize=0x04
+;
+;
+; Substitua "clock.img" pelo path do arquivo de imagem de disco.
 ;
 ; =============================================================================
 
 
+
+
+; =============================================================================
+;
 ; Referências:
+;
 ;
 ; https://www.youtube.com/watch?v=u5kBwDZjfr4&t=38s
 ;
@@ -2802,3 +2928,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ; https://wiki.osdev.org/Segment_Selector
 ;
 ; https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
+;
+; http://justsolve.archiveteam.org/wiki/Raw_disk_image
+;
+; =============================================================================

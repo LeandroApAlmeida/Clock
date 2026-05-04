@@ -405,7 +405,35 @@ int eject_disk(int disk_number) {
 }
 
 
-void print_header(const char *image_path) {
+bool is_admin() {
+	
+    BOOL isAdmin = FALSE;
+    
+	PSID adminGroup = NULL;
+    
+	SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
+    if (AllocateAndInitializeSid(
+            &NtAuthority,
+            2,
+            SECURITY_BUILTIN_DOMAIN_RID,
+            DOMAIN_ALIAS_RID_ADMINS,
+            0, 0, 0, 0, 0, 0,
+            &adminGroup
+		)) {
+
+        CheckTokenMembership(NULL, adminGroup, &isAdmin);
+		
+        FreeSid(adminGroup);
+    
+	}
+
+    return isAdmin;
+	
+}
+
+
+void print_header(const char *image_path, const char drive_letter) {
 	
 	system("cls");
 	
@@ -416,28 +444,31 @@ void print_header(const char *image_path) {
 	int num_spaces = 25;
 	
 	printf("%*sGravador de Imagem de Disco, Versão 1.0\n\n", num_spaces, "");
+	
 	printf("%*sDesenvolvido por Leandro Ap. de Almeida\n\n", num_spaces, "");
+	
+	if (!is_admin()) {
+		
+		printf("%*s[** Requer privilégio de administrador  **]\n\n", num_spaces-2, "");
+	
+	}
 	
 	printf("%s", line);
 	
-	printf("[ Imagem: %s ]\n\n", image_path);
+	printf("\n[ Disco: \"%c:\", Imagem: \"%s\" ]\n\n\n", drive_letter, image_path);
 	
 }
 
 
-int write_image_to_disk(const char *image_path) {
+int write_image_to_disk(const char *image_path, const char drive_letter) {
 	
-	print_header(image_path);
-	
-	printf("Discos removíveis encontrados:\n\n");
+	print_header(image_path, drive_letter);
 
 	int disk = -1;
 	
     for (int d = 0; d < 16; d++) {
 
         if (is_removable_device(d)) {
-
-            printf("  PhysicalDrive%d\n\n", d);
 
             disk = d;
 
@@ -449,23 +480,17 @@ int write_image_to_disk(const char *image_path) {
 
     if (disk == -1) {
 
-        printf("Nenhum disco removível encontrado.\n\n");
+        printf("Nenhum disco removível encontrado.\n");
 
         return 1;
 
     }
 
-    char letter;
-
-    printf("Digite a letra da unidade (ex: E): ");
-
-    scanf(" %c", &letter);
-
-    int mapped_disk = get_disk_from_letter(letter);
+    int mapped_disk = get_disk_from_letter(drive_letter);
 
     if (mapped_disk < 0) {
 
-        printf("\n\nErro ao mapear disco.\n");
+        printf("Erro ao mapear disco.\n");
 
         return 1;
 
@@ -473,7 +498,7 @@ int write_image_to_disk(const char *image_path) {
 
     if (!is_removable_device(mapped_disk)) {
 
-        printf("\n\nEsse disco não é removível.\n");
+        printf("Esse disco não é removível.\n");
 
         return 1;
 
@@ -483,29 +508,39 @@ int write_image_to_disk(const char *image_path) {
 
     sprintf(disk_path, "\\\\.\\PhysicalDrive%d", mapped_disk);
 
-    printf("\nDisco alvo: %s\n\n", disk_path);
-
-    printf("ATENÇÃO: Isso apagará o disco inteiro! Continuar? (s/n): ");
+    printf("Gravar a imagem apagará o disco. Continuar? (s/n): ");
 
     char c;
 
     scanf(" %c", &c);
 
-    if (c != 's' && c != 'S') return 0;
+    if (c != 's' && c != 'S') {
+		
+		printf("\nOperação cancelada.\n");
+		
+		return 0;
+	
+	}
 
-    printf("\nDigite CONFIRMAR: ");
+    printf("\nDigite CONFIRMAR para continuar: ");
 
     char confirm[32];
 
     scanf("%s", confirm);
+
+    if (strcmp(confirm, "CONFIRMAR") != 0) {
+		
+		printf("\nOperação cancelada.\n");
+		
+		return 0;
+		
+	}
 	
-	print_header(image_path);
+	print_header(image_path, drive_letter);
 
-    if (strcmp(confirm, "CONFIRMAR") != 0) return 0;
+    if (!lock_and_dismount_volume(drive_letter)) {
 
-    if (!lock_and_dismount_volume(letter)) {
-
-        printf("\n\nFalha ao liberar volume.\n");
+        printf("\nFalha ao liberar volume.\n");
 
         return 1;
 
@@ -534,7 +569,7 @@ int write_image_to_disk(const char *image_path) {
     if (image_handle == INVALID_HANDLE_VALUE || disk_handle == INVALID_HANDLE_VALUE) {
         
 		printf(
-			"Erro ao abrir arquivo ou disco (GetLastError=%lu)\n", 
+			"\nErro ao abrir arquivo ou disco (GetLastError=%lu)\n", 
 			GetLastError()
 		);
         
@@ -550,7 +585,7 @@ int write_image_to_disk(const char *image_path) {
 
     if (!buffer) {
 
-        printf("Falha de memória\n");
+        printf("\nFalha de memória\n");
 
         return 1;
 
@@ -560,7 +595,7 @@ int write_image_to_disk(const char *image_path) {
 
     if (!GetFileSizeEx(image_handle, &file_size)) {
 
-        printf("Falha ao obter tamanho do arquivo.\n");
+        printf("\nFalha ao obter tamanho do arquivo.\n");
 
         return 1;
 
@@ -588,7 +623,7 @@ int write_image_to_disk(const char *image_path) {
 
             printf("\nErro de escrita: %lu\n", GetLastError());
 
-            break;
+            return 1;
 
         }
 
@@ -598,7 +633,7 @@ int write_image_to_disk(const char *image_path) {
 
     }
 
-    printf("\n\nGravação concluída.\n");
+    printf("\n\nGravação concluída.\n\n");
 
     _aligned_free(buffer);
 	
@@ -606,14 +641,13 @@ int write_image_to_disk(const char *image_path) {
 
     CloseHandle(disk_handle);
 
-    // Tentar ejetar o disco após a gravação
     if (eject_disk(mapped_disk)) {
 		
-        printf("\nO disco foi ejetado com sucesso.\n");
+        printf("O disco foi ejetado com sucesso.\n");
 
     } else {
 
-        printf("\nFalha ao ejetar o disco.\n");
+        printf("Falha ao ejetar o disco.\n");
 
     }
 	
@@ -626,16 +660,18 @@ int main(int argc, char* argv[]) {
     
 	SetConsoleOutputCP(CP_UTF8);
 	
-    if (argc != 2) {
+    if (argc != 3) {
 		
-		printf("Uso: WriteDiskImage.exe <image_path>");
+		printf("Uso: WriteDiskImage.exe <image_path><drive_letter>");
         
 		return 1;
     
 	}
 	
 	const char *image_path = argv[1];
+	
+	char drive_letter = argv[2][0];
 
-    return write_image_to_disk(image_path);
+    return write_image_to_disk(image_path, drive_letter);
 
 }
