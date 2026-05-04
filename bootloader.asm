@@ -2777,13 +2777,15 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;   ● Tabela de partições.
 ;
 ;
-; O programa do bootloader tem que saber explicitamente em quais setores está gravado 
-; o kernel para carregá-lo na memória usando o antigo modo CHS (Cylinder-Head-Sector).
+; Quando o BIOS carregar o programa do bootloader do setor MBR para a memória e
+; entregar o controle para o mesmo, este tem que saber extamente em quais setores
+; está gravado o kernel para carregá-lo na memória usando o modo CHS (Cylinder-
+; Head-Sector).
 ; 
-; Neste caso específico, o kernel começa a partir de Cilindro 0, Cabeça 0, Setor 2,
-; e ocupa 10 setores. Como visto no código da rotina load_kernel_image, são exatamente 
-; estas as informações passadas na chamada à função 0x02 (função Read Sectors From
-; Drive) do BIOS:
+; No caso, o kernel começa a partir de Cilindro 0, Cabeça 0, Setor 2, e ocupa 10 
+; setores em sequência. Como visto no código da rotina load_kernel_image, são 
+; exatamente estas as informações passadas na chamada à função 0x02 (função Read
+; Sectors From Drive) do BIOS:
 ;
 ;
 ;    mov ah, 0x02                  ; Define o valor 0x02 em AH (função Read Sectors 
