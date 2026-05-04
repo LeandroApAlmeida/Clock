@@ -40,3 +40,13 @@ https://www.geeksforgeeks.org/computer-organization-architecture/memory-mapped-i
 https://wiki.osdev.org/Memory_Map_(x86)
 
 https://www.opsschool.org/boot_process_101.html?utm_source=chatgpt.com
+
+https://vsoch.github.io/2018/os-bootloader/
+
+https://manybutfinite.com/post/how-computers-boot-up/
+
+https://huichen-cs.github.io/course/CISC3320/20SP/lecture/x86bootinterrupts.pdf
+
+https://wiki.osdev.org/VGA_Hardware
+
+https://www.thejat.in/learn/real-mode-memory-map

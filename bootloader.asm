@@ -2,9 +2,9 @@
 ;                                  BOOTLOADER
 ; ═════════════════════════════════════════════════════════════════════════════
 ;
-; Bootloader para sistemas que utilizam o antigo firmware BIOS. Ele carrega 
-; na memória um kernel simples, que fará uma única coisa: mostrar a hora e a
-; data do sistema atualizada no monitor.
+; Bootloader para sistemas que utilizam firmware BIOS legado. Ele carrega na 
+; memória um kernel simples, que fará uma única coisa: mostrar a hora e a data 
+; do sistema atualizada no monitor.
 ;
 ; ═════════════════════════════════════════════════════════════════════════════
 
@@ -75,8 +75,8 @@
 ; neste código podem ser resumidas de forma simplificada:
 ;
 ;
-;   1. CPU inicia execução no reset vector, que aponta para firmware BIOS mapeado
-;      na memória.
+;   1. Processador inicia execução no reset vector, que aponta para o firmware
+;      BIOS mapeado na memória.
 ;
 ;
 ;   2. BIOS executa o POST (Power-On Self-Test).
@@ -627,6 +627,7 @@
 ;      ● Inicializa a Interrupt Vector Table (IVT) em 0x0000:0x0000.
 ;
 ;          * Cada vetor ocupa 4 bytes (offset + segment).
+;
 ;          * Usada para tratamento de interrupções (0x00–0xFF).
 ;
 ;
@@ -644,7 +645,7 @@
 ;
 ;
 ;    Essas estruturas marcam a transição para ambiente Modo Real funcional, ainda
-;    dentro do contexto de early POST initialization.
+;    dentro do contexto de early initialization.
 ;
 ;    Com CPU em execução, stack funcional e DRAM inicializada, o sistema entra
 ;    no POST (Power-On Self Test), que consolida a inicialização do hardware após
@@ -718,7 +719,7 @@
 ;
 ;
 ;    A ordem exata varia conforme o fabricante (AMI, Award, Phoenix), mas este 
-;    fluxo representa de forma fiel o comportamento típico de BIOS x86 legado.
+;    fluxo representa o comportamento típico de BIOS x86 legado.
 ;
 ;
 ; 4. Ao final do POST, com CPU, memória RAM, subsistema de vídeo e controladores
@@ -755,8 +756,8 @@
 ;    kernel do sistema operacional. No caso deste projeto, será o kernel do relógio.
 ;
 ; 
-; Como descrito genéricamente acima, há uma série de etapas que são realizadas 
-; antes que o jmp abaixo seja executado pelo processador.
+; Como descrito acima, há uma série de etapas que são realizadas antes que o jmp
+; abaixo seja executado pelo processador.
 ;        
 ; =============================================================================
 

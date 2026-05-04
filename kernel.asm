@@ -2,41 +2,66 @@
 ;                                    Kernel                                   
 ; ═════════════════════════════════════════════════════════════════════════════
 ;
-; O kernel tem como finalidade exibir na tela do computador a hora e a data  
-; do sistema atualizadas, no formato HH:MM:SS DD/MM/CCYY, onde:              
+; O kernel tem como finalidade exibir na tela do computador a data e a hora do 
+; sistema atualizadas, no formato HH:MN:SS DD/MM/CCYY, onde:              
+;
+;                                                                   
+;   ● HH: Dígitos das horas.                                                 
 ;                                                                             
-;   > HH: Dígitos das horas.                                                 
+;   ● MN: Dígitos dos minutos.                                               
 ;                                                                             
-;   > MM: Dígitos dos minutos.                                               
+;   ● SS: Dígitos dos segundos.                                              
 ;                                                                             
-;   > SS: Dígitos dos segundos.                                              
+;   ● DD: Dígitos do dia do mês.                                             
 ;                                                                             
-;   > DD: Dígitos do dia do mês.                                             
+;   ● MM: Dígitos do mês.                                                    
 ;                                                                             
-;   > MM: Dígitos do mês.                                                    
+;   ● CC: Dígitos do século.                                                 
 ;                                                                             
-;   > CC: Dígitos do século.                                                 
+;   ● YY: Dígitos do ano.                                                    
+;
+;                                                                        
+; Para mostrar a data e hora atualizadas, o kernel não vai ler o RTC (Real-Time 
+; Clock) a todo o momento para obter estes valores. RTC é o componente da placa-mãe 
+; que contém a data e hora atualizadas.                            
 ;                                                                             
-;   > YY: Dígitos do ano.                                                    
-;                                                                             
-; Para mostrar a data e hora atualizadas, ele não vai ler o RTC (Real-Time   
-; Clock) a todo o momento para obter estes valores. O RTC é o componente da  
-; placa-mãe que contém a data e hora atualizadas.                            
-;                                                                             
-; A estratégia de atualização da data na tela será a seguinte:               
-;                                                                             
-;   > Configura o HPET (High Precision Event Timer) para gerar interrupção   
-;     de relório (IRQ0). O HPET é um componente de hardware presente em      
-;     computadores modernos que fornece uma forma precisa e consistente de   
-;     medir o tempo. (requerido que o hardware tenha HPET)                   
-;                                                                             
-;    >  
+; A estratégia de atualização da data e hora na tela será a seguinte:               
+; 
+;                                                       
+;   ● Configura o HPET (High Precision Event Timer) para gerar interrupção de 
+;     relógio (IRQ0). O HPET é um componente de hardware que fornece uma forma 
+;     precisa e consistente de medir o tempo. 
+;
+;     Ele será programado para emitir um tick de relógio a cada 10 ms, sendo 
+;     executado um handle para o tratamento da interrupção lançada com este tick.         
+;
+;                                                 
+;   ● Usa o TSC (Time Stamp Counter) como contador de tempo do relógio. A cada
+;     10 ms, quando a interrupção de IRQ0 for lançada, lê o TSC e calcula se o
+;     número de ciclos correspontes a 1 segundo, atualiza a data e hora na tela.
+;
+;     Para que possa calcular quantos ciclos do TSC correspondem a 1 segundo, 
+;     faz-se necessário a calibração deste usando o HPET como referência de tempo 
+;     (calcula-se ticks de TSC/10 ms).
+;
+;
+;   ● Com o HPET configurado para gerar interrupção de IRQ0 e o TSC calibrado,
+;     aciona-se a rotina que faz a leitura do RTC (rtc_read_datetime) e que habilita
+;     as interrupções mascaráveis (instrução STI) para retomar o tratamento de
+;     interrupções desativado no bootloader. Após esta leitura, somente se teclar
+;     F5 no teclado que vai ser feita a leitura do RTC novamente.
+;
+;
+; Esta é uma estratégia muito parecida com a que é utilizada em sistemas operacionais
+; práticos.
+;
 ; ════════════════════════════════════════════════════════════════════════════
 
 
 [BITS 32]                         ; O kernel roda em Modo Protegido (32-bit).
 
-[ORG 0x7E00]
+[ORG 0x7E00]                      ; A imagem do kernel será carregada no endereço
+                                  ; 0x7E00 da memória.
 
 
 
@@ -1099,10 +1124,6 @@ main_loop:
 ;
 ; =============================================================================
 
-
-; =============================================================================
-; Handler de IRQ0 usando TSC calibrado
-; =============================================================================
 
 irq0_handler:
 
