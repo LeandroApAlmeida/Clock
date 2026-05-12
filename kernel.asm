@@ -1,15 +1,15 @@
 ; ═════════════════════════════════════════════════════════════════════════════
-;                                    Kernel                                   
+;                                    Kernel
 ; ═════════════════════════════════════════════════════════════════════════════
 ;
-; O kernel tem como finalidade exibir na tela do computador a data e a hora do 
-; sistema atualizadas, no formato HH:MN:SS DD/MM/CCYY, onde:              
+; O kernel tem como finalidade exibir na tela do computador a data e a hora do
+; sistema atualizadas, no formato HH:MN:SS DD/MM/CCYY, onde:  
 ;
-;                                                                   
+;                                      
 ;   ● HH: Dígitos das horas.                                                 
 ;                                                                             
 ;   ● MN: Dígitos dos minutos.                                               
-;                                                                             
+;                                                              
 ;   ● SS: Dígitos dos segundos.                                              
 ;                                                                             
 ;   ● DD: Dígitos do dia do mês.                                             
@@ -27,13 +27,13 @@
 ;                                                                             
 ; A estratégia de atualização da data e hora na tela será a seguinte:               
 ; 
-;                                                       
+;
 ;   ● Configura o HPET (High Precision Event Timer) para gerar interrupção de 
 ;     relógio (IRQ0). O HPET é um componente de hardware que fornece uma forma 
 ;     precisa e consistente de medir o tempo. 
 ;
-;     Ele será programado para emitir um tick de relógio a cada 10 ms, sendo 
-;     executado um handle para o tratamento da interrupção lançada com este tick.         
+;     Ele será programado para emitir um tick de relógio a cada 10 ms, sendo
+;     executado um handle para o tratamento da interrupção lançada com este tick.       
 ;
 ;                                                 
 ;   ● Usa o TSC (Time Stamp Counter) como contador de tempo do relógio. A cada
@@ -41,7 +41,7 @@
 ;     número de ciclos correspontes a 1 segundo, atualiza a data e hora na tela.
 ;
 ;     Para que possa calcular quantos ciclos do TSC correspondem a 1 segundo, 
-;     faz-se necessário a calibração deste usando o HPET como referência de tempo 
+;     faz-se necessário a calibração deste usando o HPET como referência de tempo
 ;     (calcula-se ticks de TSC/10 ms).
 ;
 ;
@@ -74,19 +74,23 @@
 ; A assinatura constitui os primeiros 32 bytes do binário do kernel na imagem de
 ; disco. 
 ;
+;
 ; ┌───────────────────────────────────┬────────────────────────────────────────
 ; │  Assinatura do Kernel (32 bytes)  │  Instruções e Dados (assembly)
 ; └───────────────────────────────────┴────────────────────────────────────────
 ; ├─────────────────────── Imagem do Kernel (5120 bytes) ──────────────────────
 ;
+;
 ; Quando o kernel estiver carregado na memória, ela ocupará os endereços de 0x7E00
 ; até 0x7E1F.                     
-;                                   
+;
+;
 ; ├────── Assinatura do Kernel ───────┤  0x7E20 (kernel_entry)
 ; ┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─ ↩ ────────────────────────────────────
 ; │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │  Memória do Kernel
 ; └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴──────────────────────────────────────
 ; ↪ 0x7E00                            ↪ 0x7E1F
+;
 ;
 ; =============================================================================
 
@@ -102,13 +106,13 @@ kernel_signature:
 
 ; =============================================================================
 ;
-; Ponto de entrada do kernel
+; PONTO DE ENTRADA DO KERNEL
+;
 ;
 ; Configura os seletores de segmento e a pilha do kernel. Em Modo Protegido, os 
 ; registradores de segmento (DS, ES, SS) não contêm endereços, mas sim "seletores"
-; que apontam para entradas na GDT. O seletor 0x10 (binário 00010000) aponta para
-; o Segmento de Dados da GDT (índice 2), usa a tabela Global (bit 2 = 0) e solicita 
-; o Privilégio de Anel 0 (bits 0-1 = 00).
+; que apontam para descritores de segmento na GDT. O seletor 0x10 aponta para o
+; índice do Descritor de Segmento de Dados do Kernel.
 ;
 ; Como foi adotado o esquema "Flat Model" (base 0x0, limite 4GB), o endereço linear
 ; será igual ao valor do offset. Dessa forma, fazendo ESP = 0x200000 (topo da pilha),
@@ -148,10 +152,9 @@ kernel_entry:
 ; =============================================================================
 
 init_vars:
-	
-	; Coloca o endereço MMIO padrão do HPET na variável hpet_addr.
-	
-	mov dword [hpet_addr], 0xFED00000 
+
+	mov dword [hpet_addr], 0xFED00000 ; Coloca o endereço MMIO padrão do HPET 
+	                                  ; na variável hpet_addr.  
 	                              
 
 
@@ -196,7 +199,7 @@ fill_vga_buffer:
 	mov si, screen_message        ; Mensagem com os atalhos de teclado à direita
 	                              ; da tela na segunda linha.
 	
-    call print_2nd_line                ; Imprime a mensagem na segunda linha.
+    call print_2nd_line           ; Imprime a mensagem na segunda linha.
 	
 	
 	
@@ -206,6 +209,7 @@ fill_vga_buffer:
 ; Oculta o cursor de texto na tela do relógio.
 ;
 ; =============================================================================
+
 
 hide_cursor:
     
@@ -2462,6 +2466,10 @@ screen_message:
 ; variável para armazenar endereço HPET 
 
 hpet_addr dd 0
+
+entry_size db 0
+
+cursor    dd 0
 
 
 tsc_accumulator_low dd 0       ; acumulador de ciclos TSC (parte baixa)

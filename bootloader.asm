@@ -2751,17 +2751,17 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    Bootloader                              Kernel
 ;  ├─────────────┤ ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
 ; ┌───────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
-; │ Setor 0 (MBR) │   Setor 1    │   Setor 2    │   Setor 3    │   Setor 4    │    
+; │ Setor 1 (MBR) │   Setor 2    │   Setor 3    │   Setor 4    │   Setor 5    │    
 ; └───────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─ 
 ;
 ;  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
 ; ─┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─ 
-;  │   Setor 5    │   Setor 6    │   Setor 7    │   Setor 8    │   Setor 9    │    
+;  │   Setor 6    │   Setor 7    │   Setor 8    │   Setor 9    │   Setor 10   │    
 ; ─┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─
 ;
 ;  ─ ─ ─ ─ ─ ─ ─ ┤
 ; ─┬──────────────┐ 
-;  │   Setor 10   │   
+;  │   Setor 11   │   
 ; ─┴──────────────┘
 ;
 ;
@@ -2780,7 +2780,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;
 ;
 ; Quando o BIOS carregar o programa do bootloader do setor MBR para a memória e
-; entregar o controle para o mesmo, este tem que saber extamente em quais setores
+; entregar o controle para o mesmo, este tem que saber exatamente em quais setores
 ; está gravado o kernel para carregá-lo na memória usando o modo CHS (Cylinder-
 ; Head-Sector).
 ; 
