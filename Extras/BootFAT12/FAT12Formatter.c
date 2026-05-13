@@ -129,7 +129,7 @@
                          | BPB (BIOS Parameter Block) |
                          +----------------------------+
                          | EBPB (Extended BPB)        |
-                         |----------------------------|
+                         +----------------------------+
  					     |                            |
  					     |                            |
  					     |                            |
@@ -298,26 +298,30 @@
    Bootloader Code:
    ----------------
    
-   Neste projeto, o código do bootloader vai ler o sistema FAT12 para localizar
-   o programa de teste pelo nome e carregar na memória, entregando o controle para
-   o mesmo.
-   
-   Diferentemente do projeto de relógio, que foi gerada uma imagem em Raw Format
-   para o bootloader e o kernel, em que o bootloader deve saber exatamente em que 
-   setor lógico do disco a imagem do kernel inicia e quantos setores ela ocupa, 
-   passando para o BIOS o comando para carregar em modo CHS (Cylinder-Head-Sector),
-   neste projeto, o bootloader vai buscar o arquivo do programa de teste pelo nome,
-   lendo a entrada associada a ele na estrutura de Root Directory, e, percorrendo
-   o encadeamento para carregar os clusters do arquivo na memória na tabela FAT #1.
-   
+   No código do bootloader do relógio, como a imagem é criada em Raw Format, é 
+   utilizado o modo CHS (Cylinder-Head-Sector) para carregar o kernel na memória. 
    O modo CHS era a forma antiga usada pelo BIOS para localizar setores em discos
    rígidos e disquetes antes do uso generalizado do LBA (Logical Block Addressing).
-   O BIOS carregava setores do disco para a memória usando interrupções como a 
-   INT 13h em processadores x86 no modo real. Este é o modo simulado no sistema
-   do relógio. 
    
-   No código do bootloader do relógio, o kernel é carregado desta forma na rotina
-   "load_kernel_image":
+   Os três componentes do modo CHS são:
+
+
+     > Cylinder (Cilindro): Representa a trilha física no disco.
+	 
+     > Head (Cabeça): Representa a face/leitor do disco.
+	 
+     > Sector (Setor): Representa o setor para a leitura/gravação.
+
+
+   O BIOS usa esses valores em chamadas da interrupção INT 13h (interrupção de
+   disco do BIOS). 
+   
+   O modo CHS exige que se conheça exatamente em que setor o programa do kernel 
+   se inicia, e quantos setores ele ocupa no total, para parametrizar corretamente
+   a interrupção INT 13h da BIOS.
+   
+   No código-fonte do bootloader do relógio, o kernel é carregado desta forma na
+   rotina "load_kernel_image":
    
    
      mov ah, 0x02                ; Define o valor 0x02 em AH (função Read Sectors 
@@ -335,31 +339,32 @@
      mov cl, 2                   ; Define o setor inicial a ser lido do disco.
 	
      mov bx, bp                  ; Define o endereço inicial na memória onde vai
-	                             ; carregar o kernel (0x7E00).
+	                             ; carregar o kernel (valor de bp = 0x7E00).
 								  
      int 0x13                    ; Chama a interrupção de disco do BIOS para
 	                             ; carregar o kernel na memória.
    
    
-   Este é o modo CHS. A mesma funcionalidade usando LBA ficaria o seguinte:
+   A mesma funcionalidade, aplicando-se o método LBA, ficaria com o seguinte código
+   Assembly:
    
    
      dap:                        ; Início da estrutura DAP (Disk Address Packet).
 
          db 16                   ; Tamanho da estrutura DAP em bytes.
 
-         db 0                    ; Byte reservado. Deve ser sempre 0.
+         db 0                    ; Byte reservado (deve ser sempre 0).
 
          dw 10                   ; Define o número de setores a serem lidos.
 
-         dw 0x7E00               ; Endereço de memória de destino.
+         dw 0x7E00               ; Define o endereço de memória de destino.
 
-         dw 0x0000               ; Segmento do endereço destino.
+         dw 0x0000               ; Define o segmento do endereço destino.
 
-         dq 1                    ; LBA inicial. LBA 1 = segundo setor do disco.
-                                 ; (LBA começa em 0).
+         dq 1                    ; LBA inicial do kernel. LBA 1 é o segundo setor
+		                         ; do disco (LBA começa em 0).
 
-	 load_kernel:
+	 load_kernel:                ; Label da rotina que carrega o kernel.
 
          mov ah, 0x42            ; Define o valor 0x42 em AH (função Extended 
 		                         ; Read Sectors). Leitura usando LBA.
@@ -372,24 +377,148 @@
 
          int 0x13                ; Chama a interrupção de disco do BIOS para carregar
                                  ; o kernel na memória.
-							     ;
-                                 ; O BIOS:
-							     ;
-                                 ;   1. Lê o DAP.
-							     ;
-                                 ;   2. Vai até o LBA informado.
-							     ;
-                                 ;   3. Lê 10 setores.
-						         ;
-                                 ;   4. Copia para 0000:7E00.
+   
+   
+   No código do bootloader deste projeto, o processo de carregamento do programa
+   de teste é bastante diferente. O bootloader não precisará conhecer a localização
+   exata deste programa no disco. Ele lerá diretamente o arquivo a partir da 
+   estrutura do sistema de arquivos FAT12. 
+   
+   O diagrama abaixo representa o modo como isto é feito:
+   
+   
+                                    BIOS
+                                     |
+                                     v
+                         +-------------------------+
+                         | Carrega Boot Sector no  |
+                	     | endereço 0x7C00         |
+                         +-------------------------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Bootloader inicia a     |
+                         | execução em modo real   |
+                         +-------------------------+
+						             |
+                                     v
+                         +-------------------------+
+                         | Se realoca do endereço  |
+						 | 0x7C00 para o 0x600     |
+                         +-------------------------+
+						             |
+                                     v
+                         +-------------------------+
+                         | Salta para o código     |
+						 | realocado               |
+                         +-------------------------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Lê parâmetros do BPB:   |
+                         | Bytes/setor             |
+                         | Setores/FAT             |
+                         | Entradas do root        |
+                         | Setores/cluster         |
+                         +-------------------------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Calcula as posições de  |
+                		 | Root Directory e FAT    |
+                         +-------------------------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Lê Root Directory       |
+                         +-------------------------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Procura pela entrada do | 
+						 | arquivo "TESTCODEBIN"   |
+                         +-------------------------+
+                		             |
+                                     | Entrada encontrada?
+									 |
+                                     +----------------------+
+                                     |                      |
+                                    SIM                    NÃO
+                                     |                      |
+                                     v                      v
+                         +-------------------------+   +----------+
+                         | Inicia cópia do arquivo |   | Erro:    |
+                         | para o endereço 0x7C00  |   | Bloqueia |
+                         +-------------------------+   +----------+
+                                     |
+                                     v
+                         +-------------------------+
+                         | Lê o primeiro cluster   |
+						 | do arquivo na FAT       |
+                         +-------------------------+
+						             |
+                                     v
+                         +-------------------------+
+        +--------------->| Converte cluster ->     |
+        |                | Setor físico            |
+        |                +-------------------------+
+        |                            |
+        |                            v
+        |                +-------------------------+
+        |                | Lê setor(es) do cluster |
+        |                | para a memória RAM      |
+        |                +-------------------------+
+        |                            |
+        |                            v
+        |                +-------------------------+
+        |                | Consulta FAT para obter |
+        |                | o próximo cluster       |
+        |                +-------------------------+
+        |                            |
+        |                            | Fim da cadeia?
+        |                            |
+        |              +-------------+------------+
+        |              |                          |
+        |             NÃO                        SIM
+        |              |                          |
+        |              v                          v
+        |   +----------------------+   +----------------------+
+        +---| Lê o próximo cluster |   | Arquivo totalmente   |
+            | de Data Area         |   | carregado na memória |
+            +----------------------+   +----------------------+
+                                                  |
+                                                  v
+                                       +----------------------+
+                                       | Salta para o programa|
+								       | de teste carregado em|
+									   | 0x7C00               |
+                                       +----------------------+
+         
+   
+   Como visto no diagrama, o bootloader inicialmente realoca seu próprio código
+   para um endereço mais abaixo (0x600), para copiar o código do programa de teste
+   no endereço 0x7C00 que o BIOS o carregou originalmente. Provavelmente o autor
+   usou esta estratégia porque ela era comum em sistemas antigos.
+   
+   Após realocar seu próprio código, o bootloader localiza nas estruturas da FAT12
+   Root Directory e tabela FAT. Feito isso, ele procura a entrada do arquivo do
+   programa de teste em Root Directory, com base no nome gravado nos offsets 498 
+   a 508 por este gerador de imagem de disco. Encontrado o arquivo, ele percorre 
+   o encadeamento na FAT #1 para carregar o conteúdo do clusters na memória.
+   
+   Após carregar o programa, o bootloader salta para a execução do mesmo. Este 
+   programa vai imprimir um cabeçalho e o conteúdo de alguns registradores na 
+   tela. Ele também é de autoria do mesmo dono do perfil no Github de onde baixei
+   o código do bootloader.
    
    
    Program File Name:
    ------------------
    
-   Espaço reservado pelo autor para o nome do arquivo do programa de teste. No 
-   caso, o programa grava o texto "TESTCODEBIN" neste espaço, que é o nome atribuído
-   ao arquivo do programa.
+   Espaço reservado pelo autor para o nome do arquivo do programa de teste. 
+   Corresponde aos offsets de 498 a 508 do bootlader. No caso, o programa grava 
+   o texto "TESTCODEBIN" neste espaço, que é o nome atribuído ao arquivo do programa
+   por este gerador de imagem de disco. 
    
    
    Boot Signature:
@@ -397,7 +526,7 @@
    
    O setor de boot deve receber a assinatura 0x55AA nos dois últimos bytes. Mesmo
    que fosse uma imagem de um disco não inicializável, esta assinatura é requerida
-   para que o sistema operacional possa montar o disco.
+   para que o sistema operacional possa montar o disco corretamente.
    
       
  ● Reserved Sectors:

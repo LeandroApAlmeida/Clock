@@ -1353,7 +1353,7 @@ load_kernel_image:
     mov cl, 2                     ; Define o setor inicial a ser lido do disco.
 	
     mov bx, bp                    ; Define o endereço inicial na memória onde vai
-	                              ; carregar o kernel (0x7E00).
+	                              ; carregar o kernel (valor de bp = 0x7E00).
 								  
     int 0x13                      ; Chama a interrupção de disco do BIOS para
 	                              ; carregar o kernel na memória.
@@ -2805,7 +2805,7 @@ kernel_sign:                      ; Cópia da Assinatura do kernel.
 ;    mov cl, 2                     ; Define o setor inicial a ser lido do disco.
 ;	
 ;    mov bx, bp                    ; Define o endereço inicial na memória onde vai
-; 	                               ; carregar o kernel (0x7E00).
+; 	                               ; carregar o kernel (valor de bp = 0x7E00).
 ;								  
 ;    int 0x13                      ; Chama a interrupção de disco do BIOS para
 ;	                               ; carregar o kernel na memória.
