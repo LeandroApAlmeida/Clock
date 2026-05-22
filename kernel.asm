@@ -147,7 +147,411 @@ kernel_entry:
 	
 ; =============================================================================
 ;
-; Inicialização de variáveis do sistema.
+; INICIALIZAÇÃO DAS VARIÁVEIS
+;
+;
+; Sendo didático, em Assembly não há variáveis como em linguagens de programação
+; de alto nível como C ou Java, mas sim endereços de memória que serão utilizados
+; pelo kernel e que são rotulados. O montador NASM resolve o rótulo (label) para
+; o endereço ou deslocamento correspondente durante a geração do código binário.
+; Na prática, isto se assemelha tanto com variáveis que eu tratei ambos os conceitos
+; indistintamente.
+;
+; As variáveis inicializadas nesta rotina são:
+;
+;
+;   ● hpet_addr: Endereço da região de memória mapeada (MMIO) para o componente 
+;     HPET. Neste projeto, será adotado o endereço padrão 0xFED00000, por uma
+;     questão de simplificação do código-fonte Assembly.
+;
+;     Embora seja comum em computadores com arquitetura x86 que o HPET seja mapeado
+;     neste endereço, isto não é uma regra fixa. O endereço pode variar dependendo 
+;     de:
+;
+;
+;       > Chipset.
+;
+;       > Firmware.
+;
+;       > Virtualização.
+;
+;       > Emuladores.
+;
+;       > Plataformas x86 embarcadas.
+;
+;
+;     Por este motivo, em um sistema prático é necessário fazer uma busca na
+;     tabela ACPI para obtê-lo. 
+;
+;     ACPI (Advanced Configuration and Power Interface) é o padrão usado pelo 
+;     firmware para descrever o hardware para o sistema operacional. Ele define
+;     como o sistema operacional vai controlar:
+;
+;
+;       > Energia (sleep, hibernação, desligamento).
+;
+;       > Descoberta/configuração de hardware.
+;
+;       > Eventos do sistema.
+;
+;       > Timers.
+;
+;       > Gerenciamento térmico.
+;
+;       > CPUs.
+;
+;       > Baterias.
+;
+;       > Dispositivos embarcados.
+;
+;
+;     Para encontrar o endereço do HPET via ACPI, a busca será feita pelas seguintes
+;     estruturas de dados:
+;
+;
+;       > RSDP (Root System Description Pointer): É uma estrutura de dados definida
+;         pela especificação ACPI que fornece um ponto de entrada central que lista 
+;         e referencia outras tabelas.
+;
+;         A RSDP aponta para:
+;
+;
+;           * RSDT (Root System Description Table (32-bit)).
+;
+;           * XSDT (Extended System Description Table (64-bit)).
+;
+;
+;       > XSDT/RSDT: Estas tabelas existem basicamente para listar onde estão todas
+;         as outras tabelas ACPI na memória física. Em sistemas de 32 bits, a RSDT
+;         armazena endereços de 32 bits. Com a transição para arquiteturas de 64 
+;         bits, a XSDT foi introduzida para suportar endereços de 64 bits e maior
+;         compatibilidade com hardware moderno. Muitos firmwares mantêm ambas as
+;         tabelas para compatibilidade retroativa.
+;
+;         A XSDT/RSDT contém ponteiros para diversas tabelas ACPI, como:
+;
+;
+;           * FADT.
+;
+;           * MADT.
+;
+;           * HPET.
+;
+;           * MCFG.
+;
+;           * SSDT.
+;
+;           * etc...
+;
+;
+;         O endereço do HPET que vamos salvar em hpet_addr será encontrado na tabela 
+;         HPET. 
+;
+;
+;       > HPET: A tabela HPET da ACPI é a estrutura de dados usada pelo firmware 
+;         para informar ao sistema operacional:
+;
+;
+;           * Que existe um HPET.
+;
+;           * Onde ele está mapeado.
+;
+;           * Capacidades básicas do timer.
+;
+;           * Informações de bootstrap.
+;
+;
+;         Ela foi introduzida no ACPI 2.0. Sua assinatura é "HPET".
+;         
+;         A tabela HPET contém os seguintes campos:
+;
+;
+;           * Header: Cabeçalho padrão presente em todas as tabelas ACPI.
+;
+;
+;           * EventTimerBlockID: Esse campo descreve:
+;
+;               # Capacidades do HPET.
+;               # Fabricante.
+;               # Número de timers.
+;               # Suporte 64-bit.
+;
+;             Ele corresponde ao registrador General Capabilities and ID Register
+;             do hardware do HPET.
+;
+;
+;           * BaseAddress: Este é o campo mais importante da tabela. Ele informa
+;             onde o HPET está mapeado na memória física. Num sistema prático,
+;             seria neste campo que o kernel encontraria o valor a ser gravado
+;             na variável hpet_addr.
+;
+;
+;           * HPETNumber: Identifica qual HPET está sendo descrito. É útil em 
+;             sistemas com múltiplos HPETs.
+;
+;
+;           * MinimumTick: Define o menor intervalo seguro de programação periódica.
+;
+;             Se o sistema operacional programar interrupções muito rápidas:
+;
+;               # O hardware pode perder ticks.
+;               # Comparators podem falhar.
+;               # IRQs podem sumir.
+;
+;             Dessa forma, o firmware informa um valor mínimo seguro em minimum_tick.
+;
+;
+;           * PageProtection: Define proteções de paginação para o MMIO do HPET.
+;             Na prática, muitos sistemas operacionais ignoram este campo e muitos 
+;             firmwares o colocam como 0, onde:
+;
+;               0 → Sem proteção.
+;               1 → Proteção 4 KB.
+;               2 → Proteção 64 KB.
+;
+;
+;         Em linguagem C, a tabela HPET poderia ser representada com a seguinte
+;         struct:
+;
+;
+;           struct ACPI_HPET_TABLE {
+;               ACPI_SDT_HEADER header;
+;               uint32_t        event_timer_block_id;
+;               GAS             base_address;
+;               uint8_t         hpet_number;
+;               uint16_t        minimum_tick;
+;               uint8_t         page_protection;
+;           };
+;
+;
+;         Onde:
+;
+;
+;           ACPI_SDT_HEADER: Struct que representa o cabeçalho padrão das tabelas
+;           ACPI.
+;
+;             struct ACPI_SDT_HEADER {
+;                 char     Signature[4];
+;                 uint32_t Length;
+;                 uint8_t  Revision;
+;                 uint8_t  Checksum;
+;                 char     OEMID[6];
+;                 char     OEMTableID[8];
+;                 uint32_t OEMRevision;
+;                 uint32_t CreatorID;
+;                 uint32_t CreatorRevision;
+;             };
+;
+;
+;           GAS (Generic Address Structure): Estrutura genérica definida pela ACPI
+;           para descrever endereços de registradores ou regiões de hardware. No
+;           caso da tabela HPET, ela descreve o endereço físico base do MMIO do 
+;           HPET.
+;
+;             struct GAS {
+;                 uint8_t  address_space_id;
+;                 uint8_t  register_bit_width;
+;                 uint8_t  register_bit_offset;
+;                 uint8_t  access_size;
+;                 uint64_t address;
+;             };
+;
+;
+;         Um exemplo real de HPET pode ser visto abaixo:
+;
+;
+;           Signature             = "HPET"
+;           Length                = 56
+;           Revision              = 1
+;           Checksum              = 0xA7
+;           OEMID                 = "INTEL "
+;           OEMTableID            = "HPET    "
+;           OEMRevision           = 1
+;           CreatorID             = "INTL"
+;           CreatorRevision       = 0x20201112
+;           
+;           EventTimerBlockID     = 0x8086A201
+;           
+;           BaseAddress:
+;               SpaceID           = 0
+;               BitWidth          = 64
+;               BitOffset         = 0
+;               AccessSize        = 0
+;               Address           = 0xFED00000
+;           
+;           HPETNumber            = 0
+;           
+;           MinimumTick           = 0x80
+;           
+;           PageProtection        = 0
+;
+;
+;     Um diagrama que ilustra as estruturas de dados da ACPI envolvidas na busca
+;     pelo endereço do HPET pode ser visto na figura abaixo:
+;
+;
+;       ┌──────────┐
+;       │   RSDP   │
+;       └─┬────────┘     
+;         │  32 bit
+;         │  ┌──────────┐
+;         ├──┤   RSDT   ├──┐
+;         │  └──────────┘  │
+;         │  64 bit        │
+;         │  ┌──────────┐  │
+;         └──┤   XSDT   ├──┤
+;            └──────────┘  │
+;                          │  ┌──────────┐
+;                          ├──┤   FADT   │
+;                          │  └──────────┘
+;                          │  ┌──────────┐
+;                          ├──┤   SSDT   │
+;                          │  └──────────┘  │ Header
+;                          │  ┌──────────┐  │ EventTimerBlockID
+;                          ├──┤   HPET   ├──┤ BaseAddress ← (campo pesquisado)
+;                          │  └──────────┘  │ HPETNumber
+;                          │  ┌──────────┐  │ MinimumTick
+;                          ├──┤   MADT   │  │ PageProtection
+;                          │  └──────────┘
+;                          .
+;                          .
+;                          .
+;
+;
+;     O endereço da estrutura RSDP na memória também não é fixo. Para encontrá-lo,
+;     é necessário fazer uma busca na estrutura do EBDA (Extended BIOS Data Area)
+;     ou na região de memória alta entre 0x000E0000 e 0x000FFFFF (se não encontrado
+;     na EBDA).
+;
+;     Outro detalhe importante com relação ao HPET é a configuração do cacheamento
+;     da região de memória deste via MTRR e PAT.
+;
+;     MTRR (Memory Type Range Registers) são um conjunto de registradores da 
+;     arquitetura x86 (MSRs - Model-Specific Registers) que permitem ao sistema
+;     operacional definir como a CPU trata regiões de memória física em termos
+;     de cache e comportamento de acesso. Permite dizer à CPU que o intervalo de
+;     endereços físicos deve ser tratado como de um determinado tipo de memória
+;
+;     Os tipos de memória suportados incluem:
+;
+;
+;       > Uncached (UC): Todos os acessos são feitos diretamente na memória
+;         física ou no dispositivo MMIO, sem utilização de cache interno da CPU.
+;         Leituras e escritas sempre atingem o hardware imediatamente. Utilizado
+;         para dispositivos como HPET, APIC e registradores MMIO críticos.
+;
+;
+;       > Write-Through (WT): Leituras podem ser armazenadas em cache, porém
+;         escritas são feitas simultaneamente no cache e na memória física. Garante 
+;         consistência imediata entre cache e memória ao custo de menor desempenho
+;         de escrita.
+;
+;
+;       > Write-Combining (WC): Escritas podem ser temporariamente agrupadas em
+;         buffers internos da CPU antes de serem enviadas para a memória/dispositivo.
+;         Melhora desempenho em escritas sequenciais grandes, como framebuffers 
+;         de GPU. Leituras normalmente não são cacheadas.
+;
+;
+;       > Write-Back (WB): Leituras e escritas utilizam totalmente os caches 
+;         internos da CPU. Escritas podem permanecer apenas no cache temporariamente
+;         e serem propagadas para a memória física posteriormente. É o modo mais
+;         rápido e normalmente utilizado para RAM convencional.
+;
+;
+;       > Write-Protect (WP): Leituras podem ser cacheadas, porém escritas não 
+;         utilizam cache write-back e são propagadas diretamente para a memória
+;         física. É pouco utilizado na prática e depende da implementação da CPU.
+;
+;
+;     PAT (Page Attribute Table) é um mecanismo introduzido nas arquiteturas x86
+;     mais modernas que permite definir o tipo de memória diretamente nas entradas
+;     das tabelas de paginação, oferecendo controle mais fino sobre o comportamento
+;     de cache de páginas individuais.
+;
+;     Diferentemente dos MTRRs, que operam sobre intervalos físicos grandes de
+;     memória (range), o PAT funciona em nível de página virtual mapeada, permitindo
+;     que diferentes regiões utilizem políticas distintas de cacheamento mesmo
+;     dentro de um mesmo intervalo físico contínuo.
+;
+;     O PAT é configurado através do registrador MSR IA32_PAT, que contém uma
+;     tabela com até 8 tipos de memória selecionáveis. As entradas das tabelas
+;     de paginação (PTE/PDE/PDPTE) utilizam combinações dos bits PCD, PWT e PAT
+;     para selecionar uma dessas entradas.
+;
+;     Os principais tipos de memória suportados pelo PAT incluem:
+;
+;
+;       > Uncached (UC): Todos os acessos atingem diretamente o hardware sem 
+;         utilização de cache interno da CPU. Leituras e escritas são sempre
+;         realizadas imediatamente no dispositivo físico.
+;
+;
+;       > Write-Combining (WC): Escritas consecutivas podem ser agrupadas 
+;         temporariamente antes de serem enviadas ao hardware. Muito utilizado 
+;         em framebuffers e memória de vídeo para melhorar throughput de escrita.
+;
+;
+;       > Write-Through (WT): Leituras podem utilizar cache, porém escritas são
+;         propagadas simultaneamente para o cache e para a memória física.
+;
+;
+;       > Write-Back (WB): Leituras e escritas utilizam plenamente os caches internos
+;         da CPU, permitindo máximo desempenho.
+;
+;
+;       > Uncacheable Minus (UC-): Similar ao modo UC, porém permitindo algumas 
+;         otimizações internas e acessos especulativos controlados dependendo da
+;         implementação da CPU.
+;
+;
+;     Em sistemas modernos, o PAT normalmente é utilizado em conjunto com os MTRRs,
+;     oferecendo granularidade por página virtual, enquanto os MTRRs continuam
+;     definindo atributos globais para intervalos de memória física. O tipo efetivo
+;     de memória observado pela CPU resulta da combinação entre PAT, MTRRs e outros
+;     mecanismos. Caso exista conflito entre configurações, a CPU aplica regras
+;     de precedência definidas pela arquitetura x86.
+;
+;     A faixa de endereços mapeada para o HPET deve, obrigatóriamente, ser definida
+;     como uncached, ou seja, memória sem cache com acesso direto ao hardware. Isso
+;     é necessário porque:
+;
+;
+;       > Precisa refletir hardware imediatamente.
+;
+;       > Cache poderia fazer leituras retornarem valores desatualizados do contador.
+;
+;       > A escrita deve ser imediata no dispositivo.
+;
+;
+;     Representando a faixa de endereços mapeada do HPET pelo tipo de memória em
+;     um diagrama, considerando que ele esteja mapeado em 0xFED00000:
+;
+;
+;                                   Memória RAM
+;                               │                 │
+;                               │                 │
+;                               │                 │
+;                               │                 │      
+;             ----------------- │-----------------│ 0xFED003FF 
+;             ┌┴─┴─┴─┴─┴─┴─┴─┴┐ │                 │    
+;             │     HPET      │ │    Uncached     │
+;             └┬─┬─┬─┬─┬─┬─┬─┬┘ │                 │
+;             ----------------- │-----------------│ 0xFED00000
+;                               │                 │  
+;                               │                 │
+;                               │                 │
+;                               │                 │
+;                               │                 │
+;                               │                 │
+;
+;
+;     O BIOS já faz essa configuração básica durante o POST e neste projeto ela
+;     será mantida.
+;
+;     Adiante no código será feito o acesso ao componente para configurá-lo como
+;     gerador da interrupção de relógio (IRQ0) e para calibrar o TSC para a
+;     contagem do tempo.
 ;
 ; =============================================================================
 

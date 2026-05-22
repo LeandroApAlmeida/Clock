@@ -50,3 +50,7 @@ https://huichen-cs.github.io/course/CISC3320/20SP/lecture/x86bootinterrupts.pdf
 https://wiki.osdev.org/VGA_Hardware
 
 https://www.thejat.in/learn/real-mode-memory-map
+
+https://uefi.org/specs/ACPI/6.5/Frontmatter/Overview.html
+
+https://en.wikipedia.org/wiki/Memory_type_range_register

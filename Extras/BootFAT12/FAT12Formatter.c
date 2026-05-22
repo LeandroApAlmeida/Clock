@@ -34,10 +34,10 @@
  de alguns registradores que ele lê. 
  
  Para definir o nome do arquivo do programa de teste, o autor reserva um espaço
- no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Será
- neste endereço que ele lerá o nome do arquivo para buscá-lo no diretório raiz.
- Neste projeto, o nome que escolhi para o arquivo é TESTCODE.BIN (TESTCODEBIN no
- formato 8:3 do FAT12).
+ no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Este
+ espaço corresponde aos offsets de 498 à 508. Será nestes endereços que ele lerá 
+ o nome do arquivo para buscá-lo no disco FAT12. O nome que escolhi para o arquivo
+ é "TESTCODE.BIN" ("TESTCODEBIN" no formato 8:3 do FAT12).
  
  
                           +---------------------------+
@@ -58,8 +58,8 @@
 						  |                           |
                           +...........................+ - Área reservada para
                           | Program File Name (11 B)  | | o nome do arquivo do 
-                          +...........................+ - programa (offset 498
-						  |                           |   até 508).
+                          +...........................+ - programa de teste 
+						  |                           |   (offsets 498 até 508).
                           +---------------------------+
  
   
@@ -71,21 +71,17 @@
  em disquetes e mídias de pequena capacidade (até cerca de 16 MB).
 
  A imagem gerada segue o layout clássico de um disquete 3.5 polegadas (1.44 MB), 
- contendo um volume FAT12 diretamente a partir do setor 0. Isso é necessário porque 
- o bootloader foi desenvolvido assumindo esse formato específico, incluindo a 
- geometria típica de disquetes e a ausência de particionamento.
-
- Diferentemente de discos rígidos e outros dipositivos de armazenamento com MBR 
- (Master Boot Record), onde o setor 0 contém uma tabela de partições e código
- que localiza a partição ativa, nesta abordagem não há esta tabela. Assim, o BIOS 
- carrega diretamente o setor de boot (VBR), simplificando o processo de boot e 
- eliminando a necessidade de localizar e encadear o carregamento a partir de uma 
- partição ativa.
+ contendo um volume FAT12 diretamente a partir do setor 0. Diferentemente de discos
+ rígidos e outros dipositivos de armazenamento com MBR (Master Boot Record), onde
+ o setor 0 contém uma tabela de partições e código que localiza a partição ativa, 
+ nesta abordagem não há esta tabela. Assim, o BIOS carrega diretamente o setor de
+ boot (VBR), simplificando o processo de boot e eliminando a necessidade de localizar
+ e encadear o carregamento a partir de uma partição ativa.
  
  O FAT12 organiza o disco em clusters (grupos de setores), e usa uma tabela chamada
  FAT (File Allocation Table) para encadear esses clusters.
  
- Um volume FAT12 é dividido em regiões fixas:
+ Um volume formatado como FAT12 é dividido em regiões fixas:
  
  
                             +---------------------+ -
@@ -132,9 +128,13 @@
                          +----------------------------+
  					     |                            |
  					     |                            |
+						 |                            |
  					     |                            |
+						 |                            |
                          | Bootloader Code            |
  					     |                            |
+						 |                            |
+						 |                            |
  					     |                            |
  					     |                            |
 						 +............................+
@@ -153,6 +153,13 @@
    A instrução jump é a primeira instrução do bootloader. Serve para alinhar as 
    instruções e pular sobre os dados do BPB/EBPB para ir direto ao código do 
    bootloader.
+   
+   No código-fonte ela é declarada como:
+   
+     jmp short start
+     nop
+	
+   Os opcodes da instrução ocupam 3 bytes.
  
  
    OEM Name:
@@ -162,6 +169,7 @@
    sistemas FAT.
  
    Ele serve principalmente como:
+
 
      > Identificador do software que formatou o volume.
    
@@ -177,7 +185,7 @@
    setor de Boot que descreve o layout físico de um volume de armazenamento de 
    dados. Em dispositivos particionados, que usam MBR, como discos rígidos, o BPB 
    descreve a partição do volume, enquanto em dispositivos não particionados, que
-   usam VBR, como disquetes, ele descreve toda a mídia.
+   usam VBR, como disquetes (formato desta imagem), ele descreve toda a mídia.
  
    Em sistemas com BIOS legado, o código do bootloader usa as informações do BPB/EBPB
    para:
@@ -298,10 +306,11 @@
    Bootloader Code:
    ----------------
    
-   No código do bootloader do relógio, como a imagem é criada em Raw Format, é 
-   utilizado o modo CHS (Cylinder-Head-Sector) para carregar o kernel na memória. 
-   O modo CHS era a forma antiga usada pelo BIOS para localizar setores em discos
-   rígidos e disquetes antes do uso generalizado do LBA (Logical Block Addressing).
+   No código do bootloader do projeto de relógio, como a imagem é criada em Raw 
+   Format, é utilizado o modo CHS (Cylinder-Head-Sector) para carregar o kernel 
+   na memória. O modo CHS era a forma antiga usada pelo BIOS para localizar setores
+   em discos rígidos e disquetes antes do uso generalizado do LBA (Logical Block
+   Addressing).
    
    Os três componentes do modo CHS são:
 
@@ -314,7 +323,7 @@
 
 
    O BIOS usa esses valores em chamadas da interrupção INT 13h (interrupção de
-   disco do BIOS). 
+   disco do BIOS).
    
    O modo CHS exige que se conheça exatamente em que setor o programa do kernel 
    se inicia, e quantos setores ele ocupa no total, para parametrizar corretamente
@@ -324,8 +333,8 @@
    rotina "load_kernel_image":
    
    
-     mov ah, 0x02                ; Define o valor 0x02 em AH (função Read Sectors 
-	                             ; From Drive)            
+     mov ah, 0x02                ; Define o valor 0x02 em AH (função Read Sectors
+	                             ; From Drive).
 	
      mov dl, [drive_number]      ; Lê o número do drive na memória e coloca em
 	                             ; DL.
@@ -380,7 +389,7 @@
    
    
    No código do bootloader deste projeto, o processo de carregamento do programa
-   de teste é bastante diferente. O bootloader não precisará conhecer a localização
+   de teste é muito diferente. O bootloader não precisará conhecer a localização
    exata deste programa no disco. Ele lerá diretamente o arquivo a partir da 
    estrutura do sistema de arquivos FAT12. 
    
@@ -425,7 +434,8 @@
                                      v
                          +-------------------------+
                          | Calcula as posições de  |
-                		 | Root Directory e FAT    |
+                		 | Root Directory e FAT e  |
+						 | carrega estas na memória|
                          +-------------------------+
                                      |
                                      v
@@ -454,7 +464,7 @@
                                      v
                          +-------------------------+
                          | Lê o primeiro cluster   |
-						 | do arquivo na FAT       |
+						 | do arquivo              |
                          +-------------------------+
 						             |
                                      v
@@ -484,7 +494,7 @@
         |              v                          v
         |   +----------------------+   +----------------------+
         +---| Lê o próximo cluster |   | Arquivo totalmente   |
-            | de Data Area         |   | carregado na memória |
+            |                      |   | carregado na memória |
             +----------------------+   +----------------------+
                                                   |
                                                   v
@@ -493,18 +503,19 @@
 								       | de teste carregado em|
 									   | 0x7C00               |
                                        +----------------------+
-         
+
    
    Como visto no diagrama, o bootloader inicialmente realoca seu próprio código
-   para um endereço mais abaixo (0x600), para copiar o código do programa de teste
-   no endereço 0x7C00 que o BIOS o carregou originalmente. Provavelmente o autor
-   usou esta estratégia porque ela era comum em sistemas antigos.
+   para um endereço mais baixo na memória (0x600), para copiar o código do programa
+   de teste no endereço 0x7C00 que o BIOS o carregou originalmente. Provavelmente
+   o autor usou esta estratégia porque ela era comum em sistemas antigos.
    
    Após realocar seu próprio código, o bootloader localiza nas estruturas da FAT12
-   Root Directory e tabela FAT. Feito isso, ele procura a entrada do arquivo do
-   programa de teste em Root Directory, com base no nome gravado nos offsets 498 
-   a 508 por este gerador de imagem de disco. Encontrado o arquivo, ele percorre 
-   o encadeamento na FAT #1 para carregar o conteúdo do clusters na memória.
+   Root Directory e tabela FAT. Feito isso ele carrega estas estruturas na memória
+   e procura a entrada do arquivo do programa de teste em Root Directory, com base
+   no nome gravado nos offsets 498 a 508 por este gerador de imagem de disco. 
+   Encontrado o arquivo, ele percorre o encadeamento na FAT #1 para carregar o 
+   conteúdo do clusters na memória.
    
    Após carregar o programa, o bootloader salta para a execução do mesmo. Este 
    programa vai imprimir um cabeçalho e o conteúdo de alguns registradores na 
@@ -534,44 +545,57 @@
 
    Setores reservados antes do início da primeira FAT. Se a BPB define como 1,
    é reservado apenas o setor para o bootloader (e para a BPB). Assim, as tabelas
-   de alocação de arquivo começam logo depois desse setor (setor de boot).
+   de alocação de arquivo começam logo depois desse setor (setor de boot). Este
+   parâmetro é definido no campo no offset 0x0E do BPB.
+   
+   Neste projeto é definido apenas 1 setor reservado.
 
 
  ● FAT #1 (File Allocation Table 1):
-	
-	
+
+
    A tabela FAT é basicamente um vetor que para cada cluster:
 	 
-     > Indica o próximo cluster da cadeia
+	 
+     > Indica o próximo cluster da cadeia.
 	   
-     > Um marcador especial.
+     > Um marcador especial:
+	 
+	   * Fim de arquivo.  
+       * Cluster livre.
+       * Cluster defeituoso.
  	
+	
    ou seja, ela implementa uma lista encadeada de clusters para cada arquivo.
  
-   Ela ocupa 9 setores, informado no offset 0x16 do BPB, portanto:
+   A FAT deste projeto ocupa 9 setores, informado no offset 0x16 do BPB, portanto:
+ 
  
      9 × 512 = 4608 bytes
  
+ 
    Cada entrada na tabela tem 12 bits, então:
  
+
      4608 bytes = 36864 bits
      36864 / 12 = 3072 entradas
  	
+
    Cada entrada corresponde a um cluster.
  
    Os cluster 0 e 1 são reservados. Clusters válidos começam em 2.
- 
+      
  
  ● FAT #2 (File Allocation Table 2):
  
  
- Cópia de backup da FAT #1, para o caso de esta apresentar algum problema.
+   Cópia de backup da FAT #1, para o caso de esta apresentar algum problema.
  
  
  ● Root Directory:
  
  
- Estrutura do diretório principal.
+   Estrutura do diretório principal.
  
 
 
