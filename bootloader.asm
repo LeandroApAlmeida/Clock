@@ -2200,7 +2200,7 @@ print_string:
 
 gdt_start:                        ; 0x00: Descritor Nulo (Obrigatório)
 
-    dq 0x0000000000000000
+	dq 0x0000000000000000
 
 gdt_code:                         ; 0x08: Descritor do Segmento de Código do kernel
 

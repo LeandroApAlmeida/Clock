@@ -54,3 +54,5 @@ https://www.thejat.in/learn/real-mode-memory-map
 https://uefi.org/specs/ACPI/6.5/Frontmatter/Overview.html
 
 https://en.wikipedia.org/wiki/Memory_type_range_register
+
+https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/9-series-chipset-pch-datasheet.pdf

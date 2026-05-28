@@ -35,7 +35,7 @@
 ;     Ele será programado para emitir um tick de relógio a cada 10 ms, sendo
 ;     executado um handle para o tratamento da interrupção lançada com este tick.       
 ;
-;                                                 
+;
 ;   ● Usa o TSC (Time Stamp Counter) como contador de tempo do relógio. A cada
 ;     10 ms, quando a interrupção de IRQ0 for lançada, lê o TSC e calcula se o
 ;     número de ciclos correspontes a 1 segundo, atualiza a data e hora na tela.
@@ -52,8 +52,8 @@
 ;     F5 no teclado que vai ser feita a leitura do RTC novamente.
 ;
 ;
-; Esta é uma estratégia muito parecida com a que é utilizada em sistemas operacionais
-; práticos.
+; Esta é uma estratégia muito parecida com a que é utilizada em alguns sistemas 
+; operacionais práticos. 
 ;
 ; ════════════════════════════════════════════════════════════════════════════
 
@@ -150,11 +150,11 @@ kernel_entry:
 ; INICIALIZAÇÃO DAS VARIÁVEIS
 ;
 ;
-; Sendo didático, em Assembly não há variáveis como em linguagens de programação
+; Sendo didático, em assembly não há variáveis como em linguagens de programação
 ; de alto nível como C ou Java, mas sim endereços de memória que serão utilizados
 ; pelo kernel e que são rotulados. O montador NASM resolve o rótulo (label) para
 ; o endereço ou deslocamento correspondente durante a geração do código binário.
-; Na prática, isto se assemelha tanto com variáveis que eu tratei ambos os conceitos
+; Na prática, isto se assemelha tanto com variáveis que tratei ambos os conceitos
 ; indistintamente.
 ;
 ; As variáveis inicializadas nesta rotina são:
@@ -162,11 +162,10 @@ kernel_entry:
 ;
 ;   ● hpet_addr: Endereço da região de memória mapeada (MMIO) para o componente 
 ;     HPET. Neste projeto, será adotado o endereço padrão 0xFED00000, por uma
-;     questão de simplificação do código-fonte Assembly.
+;     questão de simplificação do código-fonte assembly.
 ;
-;     Embora seja comum em computadores com arquitetura x86 que o HPET seja mapeado
-;     neste endereço, isto não é uma regra fixa. O endereço pode variar dependendo 
-;     de:
+;     Embora seja comum que o HPET seja mapeado neste endereço, isto não é uma 
+;     regra fixa. O endereço pode variar dependendo de:
 ;
 ;
 ;       > Chipset.
@@ -180,23 +179,35 @@ kernel_entry:
 ;       > Plataformas x86 embarcadas.
 ;
 ;
-;     Por este motivo, em um sistema prático é necessário fazer uma busca na
-;     tabela ACPI para obtê-lo. 
+;     O chipset oferece uma gama limitada de opções para o mapeamento do HPET,
+;     que são os seguintes endereços:
+;
+;
+;       > 0xFED00000 (Padrão).
+;
+;       > 0xFED01000.
+;
+;       > 0xFED02000.
+;
+;       > 0xFED03000.
+;
+;
+;     Em um sistema prático é necessário fazer uma busca via ACPI para resolver
+;     em qual destes endereços o HPET está mapeado de fato, e não assumir que ele
+;     está no endereço padrão, como feito neste código.
 ;
 ;     ACPI (Advanced Configuration and Power Interface) é o padrão usado pelo 
 ;     firmware para descrever o hardware para o sistema operacional. Ele define
 ;     como o sistema operacional vai controlar:
 ;
 ;
-;       > Energia (sleep, hibernação, desligamento).
+;       > Energia (soneca, hibernação, desligamento).
 ;
 ;       > Descoberta/configuração de hardware.
 ;
 ;       > Eventos do sistema.
 ;
 ;       > Timers.
-;
-;       > Gerenciamento térmico.
 ;
 ;       > CPUs.
 ;
@@ -221,14 +232,14 @@ kernel_entry:
 ;           * XSDT (Extended System Description Table (64-bit)).
 ;
 ;
-;       > XSDT/RSDT: Estas tabelas existem basicamente para listar onde estão todas
+;       > RSDT/XSDT: Estas tabelas existem basicamente para listar onde estão todas
 ;         as outras tabelas ACPI na memória física. Em sistemas de 32 bits, a RSDT
 ;         armazena endereços de 32 bits. Com a transição para arquiteturas de 64 
 ;         bits, a XSDT foi introduzida para suportar endereços de 64 bits e maior
 ;         compatibilidade com hardware moderno. Muitos firmwares mantêm ambas as
 ;         tabelas para compatibilidade retroativa.
 ;
-;         A XSDT/RSDT contém ponteiros para diversas tabelas ACPI, como:
+;         A RSDT/XSDT contém ponteiros para diversas tabelas ACPI, como:
 ;
 ;
 ;           * FADT.
@@ -238,8 +249,6 @@ kernel_entry:
 ;           * HPET.
 ;
 ;           * MCFG.
-;
-;           * SSDT.
 ;
 ;           * etc...
 ;
@@ -261,9 +270,11 @@ kernel_entry:
 ;           * Informações de bootstrap.
 ;
 ;
-;         Ela foi introduzida no ACPI 2.0. Sua assinatura é "HPET".
+;         Ela é uma tabela estática (não contém código executável AML) e serve
+;         como um mapa informativo para o kernel. Foi introduzida no ACPI 2.0 e
+;         sua assinatura é "HPET".
 ;         
-;         A tabela HPET contém os seguintes campos:
+;         A tabela HPET é composta pelos seguintes campos:
 ;
 ;
 ;           * Header: Cabeçalho padrão presente em todas as tabelas ACPI.
@@ -290,15 +301,15 @@ kernel_entry:
 ;             sistemas com múltiplos HPETs.
 ;
 ;
-;           * MinimumTick: Define o menor intervalo seguro de programação periódica.
+;           * MinimumTick: Indica o período mínimo do clock em fentossegundos 
+;             (10^-15 segundos). Isso define o menor intervalo seguro de programação
+;             periódica.
 ;
 ;             Se o sistema operacional programar interrupções muito rápidas:
 ;
 ;               # O hardware pode perder ticks.
 ;               # Comparators podem falhar.
 ;               # IRQs podem sumir.
-;
-;             Dessa forma, o firmware informa um valor mínimo seguro em minimum_tick.
 ;
 ;
 ;           * PageProtection: Define proteções de paginação para o MMIO do HPET.
@@ -315,12 +326,12 @@ kernel_entry:
 ;
 ;
 ;           struct ACPI_HPET_TABLE {
-;               ACPI_SDT_HEADER header;
-;               uint32_t        event_timer_block_id;
-;               GAS             base_address;
-;               uint8_t         hpet_number;
-;               uint16_t        minimum_tick;
-;               uint8_t         page_protection;
+;               ACPI_SDT_HEADER  header;
+;               uint32_t         event_timer_block_id;
+;               GAS              base_address;
+;               uint8_t          hpet_number;
+;               uint16_t         minimum_tick;
+;               uint8_t          page_protection;
 ;           };
 ;
 ;
@@ -331,15 +342,15 @@ kernel_entry:
 ;           ACPI.
 ;
 ;             struct ACPI_SDT_HEADER {
-;                 char     Signature[4];
-;                 uint32_t Length;
-;                 uint8_t  Revision;
-;                 uint8_t  Checksum;
-;                 char     OEMID[6];
-;                 char     OEMTableID[8];
-;                 uint32_t OEMRevision;
-;                 uint32_t CreatorID;
-;                 uint32_t CreatorRevision;
+;                 char      signature[4];
+;                 uint32_t  length;
+;                 uint8_t   revision;
+;                 uint8_t   checksum;
+;                 char      oem_id[6];
+;                 char      oem_table_id[8];
+;                 uint32_t  oem_revision;
+;                 uint32_t  creator_id;
+;                 uint32_t  creator_revision;
 ;             };
 ;
 ;
@@ -349,41 +360,41 @@ kernel_entry:
 ;           HPET.
 ;
 ;             struct GAS {
-;                 uint8_t  address_space_id;
-;                 uint8_t  register_bit_width;
-;                 uint8_t  register_bit_offset;
-;                 uint8_t  access_size;
-;                 uint64_t address;
+;                 uint8_t   address_space_id;
+;                 uint8_t   register_bit_width;
+;                 uint8_t   register_bit_offset;
+;                 uint8_t   access_size;
+;                 uint64_t  address;
 ;             };
 ;
 ;
 ;         Um exemplo real de HPET pode ser visto abaixo:
 ;
 ;
-;           Signature             = "HPET"
-;           Length                = 56
-;           Revision              = 1
-;           Checksum              = 0xA7
-;           OEMID                 = "INTEL "
-;           OEMTableID            = "HPET    "
-;           OEMRevision           = 1
-;           CreatorID             = "INTL"
-;           CreatorRevision       = 0x20201112
+;           Signature          = "HPET"
+;           Length             = 56
+;           Revision           = 1
+;           Checksum           = 0xA7
+;           OEMID              = "INTEL "
+;           OEMTableID         = "HPET    "
+;           OEMRevision        = 1
+;           CreatorID          = "INTL"
+;           CreatorRevision    = 0x20201112
 ;           
-;           EventTimerBlockID     = 0x8086A201
+;           EventTimerBlockID  = 0x8086A201
 ;           
 ;           BaseAddress:
-;               SpaceID           = 0
-;               BitWidth          = 64
-;               BitOffset         = 0
-;               AccessSize        = 0
-;               Address           = 0xFED00000
+;               SpaceID        = 0
+;               BitWidth       = 64
+;               BitOffset      = 0
+;               AccessSize     = 0
+;               Address        = 0xFED00000
 ;           
-;           HPETNumber            = 0
+;           HPETNumber         = 0
 ;           
-;           MinimumTick           = 0x80
+;           MinimumTick        = 0x80
 ;           
-;           PageProtection        = 0
+;           PageProtection     = 0
 ;
 ;
 ;     Um diagrama que ilustra as estruturas de dados da ACPI envolvidas na busca
@@ -428,9 +439,10 @@ kernel_entry:
 ;
 ;     MTRR (Memory Type Range Registers) são um conjunto de registradores da 
 ;     arquitetura x86 (MSRs - Model-Specific Registers) que permitem ao sistema
-;     operacional definir como a CPU trata regiões de memória física em termos
-;     de cache e comportamento de acesso. Permite dizer à CPU que o intervalo de
-;     endereços físicos deve ser tratado como de um determinado tipo de memória
+;     operacional definir como o processador trata regiões de memória física em 
+;     termos de cache e comportamento de acesso. Permite dizer ao processador que
+;     o intervalo de endereços físicos deve ser tratado como de um determinado
+;     tipo de memória
 ;
 ;     Os tipos de memória suportados incluem:
 ;
@@ -453,8 +465,8 @@ kernel_entry:
 ;         de GPU. Leituras normalmente não são cacheadas.
 ;
 ;
-;       > Write-Back (WB): Leituras e escritas utilizam totalmente os caches 
-;         internos da CPU. Escritas podem permanecer apenas no cache temporariamente
+;       > Write-Back (WB): Leituras e escritas utilizam totalmente os caches internos
+;         do processador. Escritas podem permanecer apenas no cache temporariamente
 ;         e serem propagadas para a memória física posteriormente. É o modo mais
 ;         rápido e normalmente utilizado para RAM convencional.
 ;
@@ -553,17 +565,25 @@ kernel_entry:
 ;     gerador da interrupção de relógio (IRQ0) e para calibrar o TSC para a
 ;     contagem do tempo.
 ;
+;
+;   ● vga_addr:
+;
 ; =============================================================================
 
 init_vars:
 
 	mov dword [hpet_addr], 0xFED00000 ; Coloca o endereço MMIO padrão do HPET 
-	                                  ; na variável hpet_addr.  
-	                              
+	                                  ; na variável hpet_addr.
+
+	mov dword [vga_addr],  0xB8000    ; 
+
 
 
 
 ; =============================================================================
+;
+; PREENCHIMENTO DO BUFFER DE VÍDEO VGA
+;
 ;
 ; Preenche toda a tela com o caractere de espaço com cor de fundo (background) 
 ; em azul. Quando formos imprimir os caracteres de hora e data, que a string não
@@ -582,7 +602,7 @@ init_vars:
 
 fill_vga_buffer:
 
-    mov edi, 0xB8000              ; Define o endereço da memória de vídeo em EDI.
+    mov edi, [vga_addr]           ; Define o endereço da memória de vídeo em EDI.
 								  
     mov ecx, 2000                 ; Define o número de caracteres a serem escritos
 	                              ; na memória de vídeo em ECX. Como a tela contém
@@ -2439,7 +2459,10 @@ acpi_poweroff:
 
 print_date_time:
 
-    mov edi, 0xB8000 + 162        ; Pula 162 bytes a partir do endereço inicial
+	mov edi, [vga_addr]           ; Armazena o valor do endereço inicial da memória
+	                              ; de video VGA.
+
+    add edi, 162                  ; Pula 162 bytes a partir do endereço inicial
 	                              ; da memória de vídeo (80 colunas x 2 bytes). 
 	                              ; Isso faz como que imprima a hora/data na 
 								  ; segunda linha da tela.
@@ -2575,6 +2598,8 @@ print_date_time:
 print_2nd_line:
 
 	pushad
+	
+	mov ebp, [vga_addr]
 
 .clear_line:
 
@@ -2582,7 +2607,7 @@ print_2nd_line:
     mov ebx, 80
     imul edi, ebx
     shl edi, 1
-    add edi, 0xB8000
+    add edi, ebp
 
     mov ah, 0x1F          
     mov al, ' '           
@@ -2599,7 +2624,7 @@ print_2nd_line:
     mov ebx, 80           
     imul edi, ebx         
     shl edi, 1            
-    add edi, 0xB8000      
+    add edi, ebp      
 
     mov ah, 0x1F          
 
@@ -2810,77 +2835,120 @@ idt_ptr:
 ;
 ; =============================================================================
 
-; Tabela de índices de registradores do RTC com informações de data e calendário.
-rtc_regs db 4, 2, 0, 7, 8, 9, 0x32
+rtc_regs:                         ; Tabela de índices de registradores do RTC 
+                                  ; com informações de data e calendário.
 
-; Buffer da hora (horas/minutos/segundos).
-time_data db 0, 0, 0
+	db 4, 2, 0, 7, 8, 9, 0x32
 
-; Buffer da data (dia/mês/ano).
-date_data db 0, 0, 0
 
-; Buffer do século.
-century_data db 0
+time_data:                        ; Buffer da hora (horas/minutos/segundos).
+	
+	db 0, 0, 0
 
-; Números de dias em cada mês do ano
-days_in_month db 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+date_data:                        ; Buffer da data (dia/mês/ano).
+	
+	db 0, 0, 0
 
-; Número de ticks do HPET em 10 ms.
-hpet_ticks_10ms dd 0
+century_data:                     ; Buffer do século.
 
-; Resto da divisão do número de ticks do HPET.
-hpet_remainder dd 0  
+	db 0
 
-; Divisor do número de ticks do HPET.          
-hpet_divisor dd 0  
+days_in_month:                    ; Números de dias em cada mês do ano (em ordem).
 
-; Acumulador de erro.          
-error_accumulator dd 0 
+	db 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 
-; Contador de ticks/10ms em tempo real.          
-ms_counter db 0
+hpet_ticks_10ms:                  ; Número de ticks do HPET em 10 ms.
 
-; Flag para controle da impressão da hora/data.
-second_flag db 0
+	dd 0
 
-; Valor lido do TSC (parte baixa).
-last_tsc_low dd 0
+hpet_remainder:                   ; Resto da divisão do número de ticks do HPET.
 
-; Valor lido do TSC (parte alta).
-last_tsc_high dd 0
+	dd 0  
+          
+hpet_divisor:                     ; Divisor do número de ticks do HPET.
 
-; Número de ticks do TSC em 10 ms.        
-tsc_per_10ms dq 0
+	dd 0  
+          
+error_accumulator:                ; Acumulador de erro.
 
-; Acumulador de ticks do TSC.        
-tsc_accumulator dq 0
+	dd 0 
+          
+ms_counter:                       ; Contador de ticks/10ms em tempo real.
+
+	db 0
+
+second_flag:                      ; Flag para controle da impressão da hora/data.
+
+	db 0
+
+last_tsc_low:                     ; Valor lido do TSC (parte baixa).
+
+	dd 0
+
+last_tsc_high:                    ; Valor lido do TSC (parte alta).
+
+	dd 0
+       
+tsc_per_10ms:                     ; Número de ticks do TSC em 10 ms. 
+
+	dq 0
+       
+tsc_accumulator:                  ; Acumulador de ticks do TSC. 
+
+	dq 0
+	
+tsc_accumulator_low:              ; acumulador de ciclos TSC (parte baixa).
+
+	dd 0
     
-hpet_error_str db 'Erro ao configura o HPET. Tecle ENTER para sair.', 0
+tsc_accumulator_high:             ; acumulador de ciclos TSC (parte alta).
 
-tsc_error_str db 'Erro ao fonfigurar o TSC. Tecle ENTER para sair.', 0
+	dd 0
 
-tsc_inv_error_str db 'O TSC nao e invariante. Tecle ENTER para sair.', 0
+tsc_per_10ms_low:
 
-power_error_str db 'Erro ao desligar. Faça manualmente.', 0
+	dd 0
+	
+tsc_per_10ms_high:
+
+	dd 0
+
+entry_size:
+
+	db 0
+
+cursor:
+
+	dd 0
+	
+hpet_addr:
+
+	dd 0
+
+vga_addr:
+	
+	dd 0
+    
+hpet_error_str:
+
+	db 'Erro ao configura o HPET. Tecle ENTER para sair.', 0
+
+tsc_error_str:
+
+	db 'Erro ao fonfigurar o TSC. Tecle ENTER para sair.', 0
+
+tsc_inv_error_str:
+
+	db 'O TSC nao e invariante. Tecle ENTER para sair.', 0
+
+power_error_str:
+
+	db 'Erro ao desligar. Faça manualmente.', 0
 
 screen_message:
+
     times 58 db ' '
     db "ESC=Sair F5=Atualizar", 0
-
-; variável para armazenar endereço HPET 
-
-hpet_addr dd 0
-
-entry_size db 0
-
-cursor    dd 0
-
-
-tsc_accumulator_low dd 0       ; acumulador de ciclos TSC (parte baixa)
-tsc_accumulator_high dd 0       ; acumulador de ciclos TSC (parte alta)
-
-tsc_per_10ms_low  dd 0
-tsc_per_10ms_high dd 0
 		  
 
 
