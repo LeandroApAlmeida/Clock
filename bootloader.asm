@@ -921,10 +921,10 @@ start:
 		
 ; =============================================================================
 ;
-; CONFIGURAÇÃO DO MODO DE TEXTO VGA 3H
+; CONFIGURAÇÃO DO MODO DE TEXTO VGA 3h
 ;
 ;
-; Configura o modo de texto VGA 3H, com 80 colunas x 25 linhas, 16 cores de texto
+; Configura o modo de texto VGA 3h, com 80 colunas x 25 linhas, 16 cores de texto
 ; e 8 cores de fundo. Este já é o modo padrão configurado pelo BIOS, mas reaplicamos
 ; a configuração aqui.
 ;
@@ -1020,7 +1020,7 @@ start:
 ;       Bit de Piscar. Valor: 0 (desligado). 
 ;       Se valor = 1, o texto vai piscar. 
 ; 
-;     Os bits de cor de texto e de fundo no modo 3H são índices para a paleta de
+;     Os bits de cor de texto e de fundo no modo 3h são índices para a paleta de
 ;     cores padrão do VGA (Standard VGA Palette):
 ;     
 ;

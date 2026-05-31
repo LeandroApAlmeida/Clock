@@ -38,7 +38,8 @@
 ;
 ;   ● Usa o TSC (Time Stamp Counter) como contador de tempo do relógio. A cada
 ;     10 ms, quando a interrupção de IRQ0 for lançada, lê o TSC e calcula se o
-;     número de ciclos correspontes a 1 segundo, atualiza a data e hora na tela.
+;     número de ciclos correspondem a 1 segundo. Se sim, atualiza a data e hora
+;     na tela.
 ;
 ;     Para que possa calcular quantos ciclos do TSC correspondem a 1 segundo, 
 ;     faz-se necessário a calibração deste usando o HPET como referência de tempo
@@ -180,7 +181,7 @@ kernel_entry:
 ;
 ;
 ;     O chipset oferece uma gama limitada de opções para o mapeamento do HPET,
-;     que são os seguintes endereços:
+;     que normalmente são os seguintes endereços:
 ;
 ;
 ;       > 0xFED00000 (Padrão).
@@ -566,7 +567,79 @@ kernel_entry:
 ;     contagem do tempo.
 ;
 ;
-;   ● vga_addr:
+;   ● vga_addr: Endereço da região de memória de vídeo do adaptador VGA. Diferentemente
+;     do HPET, este é um endereço fixo para o adaptador, e faz parte da arquitetura
+;     histórica do PC. Portanto, não é necessário (nem possível) fazer uma busca
+;     via ACPI para resolver o endereço deste dispositivo.
+;
+;     Em sistemas com firmware BIOS, a memória de vídeo VGA é dividida em 3 regiões:
+;
+;
+;              Memória RAM                     / │                    │
+;      │                         │            /  │--------------------│ 0xC0000
+;      │ Free                    │           /   │                    │
+;      │-------------------------│ 0x100000 /    │ Color Text Buffer  │
+;      │ BIOS                    │         /     │                    │
+;      │─────────────────────────│ 0xC0000/      │--------------------│ 0xB8000
+;      │ Video Memory            │               │                    │
+;      │─────────────────────────│ 0xA0000       │ Monochrome Text    │
+;      │ Extended BIOS Data Area │        \      │ Buffer             │
+;      │-------------------------│ 0x9FC00 \     │--------------------│ 0xB0000
+;      │ Free                    │          \    │                    │
+;      │-------------------------│ 0x7E00    \   │ VGA Graphics Memory│
+;      │ Bootloader              │            \  │                    │
+;      │-------------------------│ 0x7C00      \ │--------------------│ 0xA0000
+;      │ Free                    │               │                    │      
+;      │-------------------------│ 0x500         
+;      │ BIOS Data Area          │              
+;      │-------------------------│ 0x400
+;      │ Interrupt Vector Table  │
+;      └─────────────────────────┘ 0x0
+;
+;
+;     Onde:
+;
+;
+;       VGA Graphics Memory: Endereços de 0xA0000 a 0xAFFFF. 
+;
+;       É utilizada pelo modo gráfico (pixels). Podem ser configurados diversos
+;       modos gráficos como VGA 13h (320 x 200 pixels, com 256 cores), VGA 12h
+;       (640 x 480 pixels, com 16 cores), VGA 10h (640 × 350 pixels, com 16 cores).
+;       Todos estes modos usam a janela 0xA0000-0xAFFFF.
+;
+;       
+;       Monochrome Text Buffer: Endereços de 0xB0000 a 0xB7FFF. 
+;
+;       É utilizada para dar suporte ao MDA (Monochrome Display Adapter), uma das
+;       primeiras placas de vídeo oficiais do IBM PC, lançado em 1981. 
+;
+;       Exibe texto monocromático com 80 colunas × 25 linhas. Cada caractere ocupa
+;       2 bytes. O primeiro byte representa o caractere, o segundo byte o atributo
+;       monocromático (texto normal, sublinhado, etc).
+;
+;
+;       Color Text Buffer: Endereços de 0xB8000 a 0xBFFFF. 
+;
+;       É a região de memória usada pelos adaptadores CGA, EGA e VGA para exibir
+;       texto colorido na tela. O modo mais comum, e o que estamos utilizando
+;       neste projeto, é o Modo 3h (80 colunas × 25 linhas). Mas há diversos
+;       outros modos de texto colorido como 00h (40 colunas × 25 linhas, colorido),
+;       02h (80 colunas × 25 linhas, monocromático, usando o buffer colorido em
+;       0xB8000). Todos estes modos usam a janela 0xB8000-0xBFFFF
+;
+;       Para uma descrição mais detalhada do modo de texto VGA 3h, vá ao código-fonte
+;       do bootloader e leia a documentação da rotina set_vga_text_mode.
+;
+;
+;     Embora existam três regiões distintas (0xA0000, 0xB0000 e 0xB8000), elas 
+;     não correspondem necessariamente a três áreas físicas diferentes de memória.
+;     Em um adaptador VGA, estas regiões são normalmente janelas de acesso para 
+;     recursos internos do mesmo controlador de vídeo, mantidas por razões de 
+;     compatibilidade com os adaptadores MDA, CGA e EGA.
+;
+;     Assim como com o HPET, o BIOS faz a configuração básica de MTTR para esta
+;     região durante o POST, definindo-a como Uncached, e vamos manter esta 
+;     configuração.
 ;
 ; =============================================================================
 
@@ -575,42 +648,57 @@ init_vars:
 	mov dword [hpet_addr], 0xFED00000 ; Coloca o endereço MMIO padrão do HPET 
 	                                  ; na variável hpet_addr.
 
-	mov dword [vga_addr],  0xB8000    ; 
+	mov dword [vga_addr],  0xB8000    ; Coloca o endereço do video VGA na variável
+	                                  ; vga_addr.
 
 
 
 
 ; =============================================================================
 ;
-; PREENCHIMENTO DO BUFFER DE VÍDEO VGA
+; PREENCHIMENTO DO BUFFER DE VÍDEO EM MODO VGA 3h
 ;
 ;
-; Preenche toda a tela com o caractere de espaço com cor de fundo (background) 
-; em azul. Quando formos imprimir os caracteres de hora e data, que a string não
-; muda de tamanho e nem de posição na tela, apenas sobrescrevemos os bytes 
-; correspondentes na memória de vídeo, mantendo o restante dos bytes com este
-; valor padrão de fundo.
+; O objetivo desta rotina é preencher todo o buffer de vídeo em modo VGA 3h com
+; o caractere 0x1F20 (0b0001111100100000). Este é o caractere de espaço, com cor
+; de texto branca e fundo azul (consulte a documentação da rotina set_vga_text_mode
+; no código-fonte do bootloader para mais informações sobre o modo de texto VGA 
+; 3h e sobre este caractere específico). Isso fará com que toda a tela mostre um 
+; fundo azul, sem grifos visíveis.
 ;
-; O modo de vídeo foi configurado como texto 80x25 no bootloader. Esta configuração
-; é mantida na troca do Modo Real para o Modo Protegido e não será necessário 
-; reconfigurar. Para este modo de vídeo, a gravação da memória se inicia no endereço
-; 0xB8000, e cada caractere ocupará 2 bytes (1 byte para o código ASCII e 1 byte 
-; para os atributos de cor).
+; Na sequência, é impresso o texto com as instruções ("Esc=Sair F5=Atualizar")
+; no canto direito, segunda linha da tela. Com isso, se define a parte estática, 
+; do buffer, que não é alterada quando imprimir a data e hora do sistema.
+;
+;
+;  ├───────────────────────── Color Text Buffer ── ... ───────────────────┤
+;  ┌────────┬────────┬────────┬────────┬────────┬──   ──┬────────┬────────┐
+;  │ 0x1F20 │ 0x1F20 │ 0x1F20 │ 0x1F20 │ 0x1F20 │  ...  │ 0x1F20 │ 0x1F20 │
+;  └────────┴────────┴────────┴────────┴────────┴──   ──┴────────┴────────┘
+;  |0xB8000 |0xB8001 |0xB8002 |0xB8003 |0xB8004 |  ...  |0xB8F9E |0xB8F9F |
+;
+;
+; Quando for atualizada a data e a hora, vai mudar apenas os caracteres 
+; refentes ao relógio na segunda linha, por exemplo, "21:50:00 30/05/2026".
+; Isso se faz reescrevendo apenas os 19 primeiros caracteres naquela linha,
+; sem alterar os demais caracteres no buffer de vídeo VGA, definidos nesta
+; rotina.
 ;
 ; =============================================================================
 
 
 fill_vga_buffer:
 
-    mov edi, [vga_addr]           ; Define o endereço da memória de vídeo em EDI.
+    mov edi, [vga_addr]           ; Define o endereço da memória de vídeo VGA em 
+	                              ; EDI.
 								  
     mov ecx, 2000                 ; Define o número de caracteres a serem escritos
-	                              ; na memória de vídeo em ECX. Como a tela contém
+	                              ; no buffer de vídeo em ECX. Como a tela contém
 								  ; 80x25 caracteres, então serão gravados 2.000 
 								  ; caracteres.
 								  
-    mov ax, 0x1F20                ; Define o valor do caractere a ser gravado em
-                                  ; toda a tela em AX.
+    mov ax, 0x1F20                ; Define o valor do caractere a ser gravado no
+                                  ; buffer em AX.
 	
     cld                           ; Define o bit "Direction Flag" (DF) no registro
                                   ; de EFLAGS como 0.
@@ -621,7 +709,7 @@ fill_vga_buffer:
 								  ; (com EDI = 0xB8000).
 								  
 	mov si, screen_message        ; Mensagem com os atalhos de teclado à direita
-	                              ; da tela na segunda linha.
+	                              ; da tela na segunda linha ("Esc=Sair F5=Atualizar").
 	
     call print_2nd_line           ; Imprime a mensagem na segunda linha.
 	
@@ -630,7 +718,32 @@ fill_vga_buffer:
 	
 ; =============================================================================
 ;
-; Oculta o cursor de texto na tela do relógio.
+; OCULTAÇÃO DO CURSOR
+;
+;
+; Oculta o cursor de texto no prompt do relógio usando I/O port-mapped I/O (PMIO).
+;
+; Esta rotina está acessando os seguintes registradores internos do adaptador VGA:
+;
+;
+;   > 0x0A: Cursor Start Register.
+;
+;   > 0x0B: Cursor End Register.
+;
+;
+; Esses registradores controlam:
+;
+;
+;   > Visibilidade do cursor.
+;
+;   > Formato (linha inicial/final).
+;
+;   > blink vs disable.
+;
+;
+; Nota:
+;
+; O VGA clássico mistura o dois tipos de acesso: MMIO e PMIO.
 ;
 ; =============================================================================
 
@@ -645,7 +758,7 @@ hide_cursor:
 	mov al, 0x0A                  ; Seleciona o registrador de cursor alto (Cursor
 	                              ; Start Register) na porta 0x3D4. Este registrador
 								  ; controla o início do cursor e outros bits 
-								  ; relacionados.   
+								  ; relacionados.
     
 	out dx, al                    ; Envia o índice do registrador (0x0A) para o 
 	                              ; CRT através da porta 0x3D4. O CRT agora sabe
@@ -693,11 +806,15 @@ hide_cursor:
 ; neste kernel (handlers), ficando o restante das entradas da tabela UDT sem 
 ; tratadores definidos. 
 ;
+;
 ;   > Handler da interrupção de relógio (IRQ0), mapeado na entrada 32 (gate 32).
+;
 ;
 ;   > Handler da interrupção de teclado (IRQ1), mapeado na entrada 33 (gate 33).
 ;
+;
 ; Os bytes que serão gravados em cada entrada serão os seguintes:
+;
 ;
 ;   Byte    Conteúdo    Descrição
 ;   ------  ----------  -------------------------------------------------------
