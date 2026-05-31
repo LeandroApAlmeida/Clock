@@ -1435,14 +1435,65 @@ load_kernel_image:
 ;
 ; O segmento de código do kernel em Modo Protegido foi configurado como 32-bit, 
 ; fazendo com que as instruções usem operandos de 32 bits por padrão (configuramos 
-; isso na GDT). Dessa forma, precisamos fazer um Far Jump ao entregar o controle
-; do programa para o kernel, para limpar do pipeline as instruções de 16 bits do
-; bootloader e redefinir o registrador de segmento de código (CS) e o ponteiro 
-; de instrução (EIP).
+; isso na GDT). Dessa forma, após atribuir o endereço do GDT ao GDTR do processador
+; e configurar o registrador CR0 para o Modo Protegido, precisamos fazer um Far
+; Jump ao entregar o controle do programa para o kernel, para limpar do pipeline
+; as instruções de 16 bits do bootloader e redefinir o registrador de segmento 
+; de código (CS) e o ponteiro de instrução (EIP).
 ;
-; O fluxograma abaixo ilustra como funciona esta transição. Antes de executar o 
-; Far Jump, o controle do programa está com o bootloader (acima da linha pontilhada).
-; Quando executar, o controle vai passar para o kernel (abaixo da linha pontilhada).
+;
+; -----------------------------------------------------------------------------
+; Nota: Neste projeto estaremos configurando a GDT apenas para o BSP (Bootstrap
+; Processor). Este é o processador (CPU) que é definido pela plataforma (chipset
+; + firmware + APIC) para inicializar o sistema. O BSP é selecionado pela plataforma
+; durante a fase inicial do firmware, logo após o reset, antes do carregamento
+; do bootloader e do sistema operacional entrar em execução.
+; 
+; Em processadores multicores com SMT (Simultaneous Multithreading), como o Hyper-
+; Threading da Intel, cada núcleo físico (core) pode expor múltiplas CPUs lógicas, 
+; porém apenas uma será selecionada como BSP.
+;
+; Exemplo:
+;
+; Considere um PC com 4 CPUs lógicas:
+;
+;   CPU0
+;   CPU1
+;   CPU2
+;   CPU3
+;
+; Após a seleção do BSP, elas poderão estar no seguinte estado (a escolha de CPU0
+; como BSP não é garantida pela arquitetura):
+;
+;   CPU0 = BSP (ativo)
+;   CPU1 = AP  (parado)
+;   CPU2 = AP  (parado)
+;   CPU3 = AP  (parado)
+;
+; O BSP é responsável por:
+;
+;   > Inicializar o hardware básico.
+;
+;   > Configurar a memória.
+;
+;   > Carregar o sistema operacional.
+;
+;   > Descobrir os demais processadores lógicos (através da tabela MADT da ACPI).
+;
+;   > Inicializar os APs (Application Processors).
+;
+; Em sistemas modernos, cada CPU lógica possui seu próprio GDTR e IDTR, podendo
+; compartilhar as mesmas tabelas ou utilizar cópias independentes. Neste projeto,
+; em razão de estarmos implementando apenas um relógio que mostra a data e hora
+; na tela do computador, não há necessidade de suporte a SMP, por isso apenas o 
+; BSP terá a GDT inicializada e os APs não serão ativados.
+; -----------------------------------------------------------------------------
+;
+;
+; O fluxograma abaixo ilustra como a transição do Modo Real para o Modo Protegido
+; funciona. Antes de executar o Far Jump, o controle do programa está com o bootloader 
+; (acima da linha pontilhada). Quando executar, o controle vai passar para o kernel
+; (abaixo da linha pontilhada).
 ;
 ;
 ;                       ┌──────────────────────────────┐
@@ -1540,7 +1591,7 @@ enter_pmode_and_jump:
     lgdt [gdt_ptr]                ; Carrega o endereço da Tabela de Descritores
 	                              ; Globais (GDT - Global Descriptor Table) no
 								  ; registrador interno GDTR (Global Descriptor
-								  ; Table Register) 
+								  ; Table Register) do BSP.
 									   
     mov eax, cr0                  ; Copia o registrador CR0 (Control Register 0)
 	                              ; em EAX. O registrador CR0 controla estados

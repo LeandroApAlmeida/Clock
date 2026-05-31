@@ -56,3 +56,11 @@ https://uefi.org/specs/ACPI/6.5/Frontmatter/Overview.html
 https://en.wikipedia.org/wiki/Memory_type_range_register
 
 https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/9-series-chipset-pch-datasheet.pdf
+
+https://www.infosecinstitute.com/resources/reverse-engineering/protected-mode-and-the-idt/
+
+https://askleo.com/core-vs-logical-processors-what-really-powers-your-cpu/
+
+https://patents.google.com/patent/US5904733A/en
+
+https://community.intel.com/t5/Intel-Moderncode-for-Parallel/Halting-Restarting-a-BSP/m-p/810210?profile.language=de&countrylabel=Peru
