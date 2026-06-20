@@ -2,9 +2,9 @@
 
 <br>
 
-Este programa em assembly "bare metal" implementa um relógio digital que mostra a hora e a data do sistema, sem opções de ajuste do horário (apenas lê os valores gravados pelo sistema operacional hospedeiro). Ele foi escrito para arquiteturas x86 e firmware BIOS utilizando o montador NASM.
+Este programa em assembly "bare metal" implementa um relógio digital que mostra a hora e a data do sistema, sem opções de ajuste do horário (apenas lê os valores gravados pelo sistema operacional hospedeiro). Ele foi escrito para arquiteturas x86 e firmware BIOS, utilizando o montador NASM.
 
-O programa implementa um bootloader simples e um kernel rudimentar. O bootloader tem a tarefa de carregar o kernel na memória. Assim que o kernel inicializa, ele executa as seguintes instruções:
+O programa implementa um bootloader simples e um kernel rudimentar. O bootloader tem a tarefa de carregar o kernel na memória. Assim que o kernel inicializa, ele executa as seguintes etapas:
 
 <br>
 
@@ -20,7 +20,7 @@ O programa implementa um bootloader simples e um kernel rudimentar. O bootloader
 
 <br>
 
-O código-fonte do programa se encontra nos arquivos:
+O código-fonte do programa para o montador NASM se encontra nos arquivos:
 
 <br>
 
@@ -40,7 +40,7 @@ Como complemento ao projeto, foram implementados outros projetos auxiliares. Ele
 
 <br>
 
-Consulte a documentação no código-fonte de cada projeto para entender como funcionam.
+Consulte a documentação no código-fonte para entender como cada projeto funciona.
 
 <br>
 
