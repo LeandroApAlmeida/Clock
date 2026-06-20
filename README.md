@@ -1,6 +1,6 @@
 <h3>Relógio digital em Assembly "Bare Metal" para arquitetura x86</h3>
 
-<br><br>
+<br>
 
 Este programa em assembly "bare metal" implementa um relógio digital que mostra a hora e a data do sistema. Foi escrito para arquiteturas x86 e firmware BIOS.
 
