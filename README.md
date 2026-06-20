@@ -28,6 +28,8 @@ Como complemento ao projeto, foram implementados outros projetos auxiliares. Ele
   
   * \Extras\WriteDiskImage\: Neste diretório está o código-fonte de um gravador de imagem de disco que permite gravar as imagens geradas em uma pendrive, HD Externo ou outra mídia removível para testar o relógio em um hardware real.
 
-Consulte a documentação no código-fonte de cada projeto para entender como cada umm funciona.
+Consulte a documentação no código-fonte de cada projeto para entender como cada um funciona.
+
+<br>
 
 https://github.com/user-attachments/assets/04728317-d0d1-494b-af46-d76b9a60ff95
