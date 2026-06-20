@@ -6,6 +6,8 @@ Este programa em assembly "bare metal" implementa um relógio digital que mostra
 
 O programa implementa um bootloader simples e um kernel rudimentar. O bootloader tem a tarefa de carregar o kernel na memória. Assim que o kernel inicializa, ele executa as seguintes etapas:
 
+<br>
+
   * Define o HPET (High Precision Event Timer) como gerador de interrupção de relógio (IRQ0) no lugar do PIT (Programmable interval timer).
 
   * Calibra o TSC usando o HPET para funcionar como um contador de tempo muito preciso.
