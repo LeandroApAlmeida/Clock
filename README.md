@@ -18,15 +18,15 @@ O programa implementa um bootloader simples e um kernel rudimentar. O bootloader
 
 O código-fonte do programa se encontra nos arquivos:
 
-  * bootlader.asm: Código-fonte do bootloader.
+  * "bootlader.asm": Código-fonte do bootloader.
   
-  * kernel.asm: Código-fonte do kernel do relógio.
+  * "kernel.asm": Código-fonte do kernel do relógio.
 
 Como complemento ao projeto, foram implementados outros projetos auxiliares. Eles estão no subdiretório "Extras" e são:
 
-  * \Extras\BootFAT12\: Neste diretório está o código-fonte de um bootloader de terceiro que espera um arquivo de imagem formatado como FAT-12.
+  * "\Extras\BootFAT12\": Neste diretório está o código-fonte de um bootloader de terceiro que espera um arquivo de imagem formatado como FAT-12.
   
-  * \Extras\WriteDiskImage\: Neste diretório está o código-fonte de um gravador de imagem de disco que permite gravar as imagens geradas em uma pendrive, HD Externo ou outra mídia removível para testar o relógio em um hardware real.
+  * "\Extras\WriteDiskImage\": Neste diretório está o código-fonte de um gravador de imagem de disco que permite gravar as imagens geradas em uma pendrive, HD Externo ou outra mídia removível para testar o relógio em um hardware real.
 
 Consulte a documentação no código-fonte de cada projeto para entender como funcionam.
 
