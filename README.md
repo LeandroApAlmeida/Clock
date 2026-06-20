@@ -44,4 +44,4 @@ Consulte a documentação no código-fonte para entender como cada projeto funci
 
 <br>
 
-https://github.com/user-attachments/assets/990f4c1e-6ab7-4069-a86b-e0cf6fa2a850
+https://github.com/user-attachments/assets/47b50cfc-2d6f-4adc-832f-d3c7abd86384
