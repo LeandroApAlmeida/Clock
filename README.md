@@ -1,5 +1,7 @@
 <h3>Relógio digital em Assembly "Bare Metal" para arquitetura x86</h3>
 
+<br><br>
+
 Este programa em assembly "bare metal" implementa um relógio digital que mostra a hora e a data atualizada do sistema. Foi escrito para arquiteturas x86 e firmware BIOS.
 
 O programa implementa um bootloader simples e um kernel rudimentar. O bootloader tem a tarefa de carregar o kernel na memória. Assim que o kernel inicializa, ele executa as seguintes instruções:
