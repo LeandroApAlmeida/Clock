@@ -73,7 +73,7 @@
 ;
 ;
 ; A assinatura constitui os primeiros 32 bytes do binário do kernel na imagem de
-; disco. 
+; disco.
 ;
 ;
 ; ┌───────────────────────────────────┬────────────────────────────────────────
@@ -83,7 +83,7 @@
 ;
 ;
 ; Quando o kernel estiver carregado na memória, ela ocupará os endereços de 0x7E00
-; até 0x7E1F.                     
+; até 0x7E1F.
 ;
 ;
 ; ├────── Assinatura do Kernel ───────┤  0x7E20 (kernel_entry)
@@ -109,7 +109,7 @@ kernel_signature:
 ; PONTO DE ENTRADA DO KERNEL
 ;
 ;
-; Configura os seletores de segmento e a pilha do kernel. Em Modo Protegido, os 
+; Configura os seletores de segmento e a pilha do kernel. Em Modo Protegido, os
 ; registradores de segmento (DS, ES, SS) não contêm endereços, mas sim "seletores"
 ; que apontam para descritores de segmento na GDT. O seletor 0x10 aponta para o
 ; índice do Descritor de Segmento de Dados do Kernel.
@@ -326,12 +326,12 @@ kernel_entry:
 ;
 ;
 ;           struct ACPI_HPET_TABLE {
-;               ACPI_SDT_HEADER  header;
-;               uint32_t         event_timer_block_id;
-;               GAS              base_address;
-;               uint8_t          hpet_number;
-;               uint16_t         minimum_tick;
-;               uint8_t          page_protection;
+;               ACPI_SDT_HEADER  Header;
+;               uint32_t         EventTimerBlockId;
+;               GAS              BaseAddress;
+;               uint8_t          HPETNumber;
+;               uint16_t         MinimumTick;
+;               uint8_t          PageProtection;
 ;           };
 ;
 ;
@@ -342,15 +342,15 @@ kernel_entry:
 ;           ACPI.
 ;
 ;             struct ACPI_SDT_HEADER {
-;                 char      signature[4];
-;                 uint32_t  length;
-;                 uint8_t   revision;
-;                 uint8_t   checksum;
-;                 char      oem_id[6];
-;                 char      oem_table_id[8];
-;                 uint32_t  oem_revision;
-;                 uint32_t  creator_id;
-;                 uint32_t  creator_revision;
+;                 char      Signature[4];
+;                 uint32_t  Length;
+;                 uint8_t   Revision;
+;                 uint8_t   Checksum;
+;                 char      OEMId[6];
+;                 char      OEMTableId[8];
+;                 uint32_t  OEMRevision;
+;                 uint32_t  CreatorId;
+;                 uint32_t  CreatorRevision;
 ;             };
 ;
 ;
@@ -360,41 +360,44 @@ kernel_entry:
 ;           HPET.
 ;
 ;             struct GAS {
-;                 uint8_t   address_space_id;
-;                 uint8_t   register_bit_width;
-;                 uint8_t   register_bit_offset;
-;                 uint8_t   access_size;
-;                 uint64_t  address;
+;                 uint8_t   AddressSpaceId;
+;                 uint8_t   RegisterBitWidth;
+;                 uint8_t   RegisterBitOffset;
+;                 uint8_t   AccessSize;
+;                 uint64_t  Address;
 ;             };
 ;
 ;
 ;         Um exemplo real de HPET pode ser visto abaixo:
 ;
 ;
-;           Signature          = "HPET"
-;           Length             = 56
-;           Revision           = 1
-;           Checksum           = 0xA7
-;           OEMID              = "INTEL "
-;           OEMTableID         = "HPET    "
-;           OEMRevision        = 1
-;           CreatorID          = "INTL"
-;           CreatorRevision    = 0x20201112
+;           Header:
+;
+;               Signature          =       "HPET"
+;               Length             =       56
+;               Revision           =       1
+;               Checksum           =       0xA7
+;               OEMId              =       "INTEL "
+;               OEMTableId         =       "HPET    "
+;               OEMRevision        =       1
+;               CreatorId          =       "INTL"
+;               CreatorRevision    =       0x20201112
 ;           
-;           EventTimerBlockID  = 0x8086A201
+;           EventTimerBlockID      =       0x8086A201
 ;           
 ;           BaseAddress:
-;               SpaceID        = 0
-;               BitWidth       = 64
-;               BitOffset      = 0
-;               AccessSize     = 0
-;               Address        = 0xFED00000
+;
+;               AddressSpaceId     =       0
+;               RegisterBitWidth   =       64
+;               RegisterBitOffset  =       0
+;               AccessSize         =       0
+;               Address            =       0xFED00000
 ;           
-;           HPETNumber         = 0
+;           HPETNumber             =       0
 ;           
-;           MinimumTick        = 0x80
+;           MinimumTick            =       0x80
 ;           
-;           PageProtection     = 0
+;           PageProtection         =       0
 ;
 ;
 ;     Um diagrama que ilustra as estruturas de dados da ACPI envolvidas na busca
@@ -434,7 +437,7 @@ kernel_entry:
 ;     ou na região de memória alta entre 0x000E0000 e 0x000FFFFF (se não encontrado
 ;     na EBDA).
 ;
-;     Outro detalhe importante com relação ao HPET é a configuração do cacheamento
+;     Outro detalhe importante com relação ao HPET é a configuração do caching
 ;     da região de memória deste via MTRR e PAT.
 ;
 ;     MTRR (Memory Type Range Registers) são um conjunto de registradores da 
@@ -442,7 +445,7 @@ kernel_entry:
 ;     operacional definir como o processador trata regiões de memória física em 
 ;     termos de cache e comportamento de acesso. Permite dizer ao processador que
 ;     o intervalo de endereços físicos deve ser tratado como de um determinado
-;     tipo de memória
+;     tipo de memória.
 ;
 ;     Os tipos de memória suportados incluem:
 ;
@@ -454,7 +457,7 @@ kernel_entry:
 ;
 ;
 ;       > Write-Through (WT): Leituras podem ser armazenadas em cache, porém
-;         escritas são feitas simultaneamente no cache e na memória física. Garante 
+;         escritas são feitas simultaneamente no cache e na memória física. Garante
 ;         consistência imediata entre cache e memória ao custo de menor desempenho
 ;         de escrita.
 ;
@@ -471,7 +474,7 @@ kernel_entry:
 ;         rápido e normalmente utilizado para RAM convencional.
 ;
 ;
-;       > Write-Protect (WP): Leituras podem ser cacheadas, porém escritas não 
+;       > Write-Protect (WP): Leituras podem usar cache, porém escritas não 
 ;         utilizam cache write-back e são propagadas diretamente para a memória
 ;         física. É pouco utilizado na prática e depende da implementação da CPU.
 ;
@@ -483,8 +486,8 @@ kernel_entry:
 ;
 ;     Diferentemente dos MTRRs, que operam sobre intervalos físicos grandes de
 ;     memória (range), o PAT funciona em nível de página virtual mapeada, permitindo
-;     que diferentes regiões utilizem políticas distintas de cacheamento mesmo
-;     dentro de um mesmo intervalo físico contínuo.
+;     que diferentes regiões utilizem políticas distintas de caching mesmo dentro
+;     de um mesmo intervalo físico contínuo.
 ;
 ;     O PAT é configurado através do registrador MSR IA32_PAT, que contém uma
 ;     tabela com até 8 tipos de memória selecionáveis. As entradas das tabelas
@@ -574,21 +577,23 @@ kernel_entry:
 ;     Em sistemas com firmware BIOS, a memória de vídeo VGA é dividida em 3 regiões:
 ;
 ;
-;              Memória RAM                     / │                    │
-;      │                         │            /  │--------------------│ 0xC0000
-;      │ Free                    │           /   │                    │
-;      │-------------------------│ 0x100000 /    │ Color Text Buffer  │
-;      │ BIOS                    │         /     │                    │
-;      │─────────────────────────│ 0xC0000/      │--------------------│ 0xB8000
-;      │ Video Memory            │               │                    │
-;      │─────────────────────────│ 0xA0000       │ Monochrome Text    │
-;      │ Extended BIOS Data Area │        \      │ Buffer             │
-;      │-------------------------│ 0x9FC00 \     │--------------------│ 0xB0000
-;      │ Free                    │          \    │                    │
-;      │-------------------------│ 0x7E00    \   │ VGA Graphics Memory│
-;      │ Bootloader              │            \  │                    │
-;      │-------------------------│ 0x7C00      \ │--------------------│ 0xA0000
-;      │ Free                    │               │                    │      
+;
+;                                                / │                    │
+;              Memória RAM                      /  │--------------------│ 0xC0000
+;      │                         │             /   │                    │
+;      │ Free                    │            /    │ Color Text Buffer  │
+;      │-------------------------│ 0x100000  /     │                    │
+;      │ BIOS                    │          /      │--------------------│ 0xB8000
+;      │─────────────────────────│ 0xC0000 /       │                    │
+;      │ Video Memory ###########│                 │ Monochrome Text    │
+;      │─────────────────────────│ 0xA0000 \       │ Buffer             │
+;      │ Extended BIOS Data Area │          \      │--------------------│ 0xB0000
+;      │-------------------------│ 0x9FC00   \     │                    │
+;      │ Free                    │            \    │ VGA Graphics Memory│
+;      │-------------------------│ 0x7E00      \   │                    │
+;      │ Bootloader              │              \  │--------------------│ 0xA0000
+;      │-------------------------│ 0x7C00        \ │                    │
+;      │ Free                    │                      
 ;      │-------------------------│ 0x500         
 ;      │ BIOS Data Area          │              
 ;      │-------------------------│ 0x400
@@ -599,32 +604,29 @@ kernel_entry:
 ;     Onde:
 ;
 ;
-;       VGA Graphics Memory: Endereços de 0xA0000 a 0xAFFFF. 
-;
-;       É utilizada pelo modo gráfico (pixels). Podem ser configurados diversos
-;       modos gráficos como VGA 13h (320 x 200 pixels, com 256 cores), VGA 12h
-;       (640 x 480 pixels, com 16 cores), VGA 10h (640 × 350 pixels, com 16 cores).
-;       Todos estes modos usam a janela 0xA0000-0xAFFFF.
+;       VGA Graphics Memory (endereços de 0xA0000 a 0xAFFFF): É utilizada pelo modo
+;       gráfico (pixels). Podem ser configurados diversos modos gráficos como VGA
+;       13h (320 x 200 pixels, com 256 cores), VGA 12h (640 x 480 pixels, com 16 
+;       cores), VGA 10h (640 × 350 pixels, com 16 cores). Todos estes modos usam
+;       a janela 0xA0000-0xAFFFF.
 ;
 ;       
-;       Monochrome Text Buffer: Endereços de 0xB0000 a 0xB7FFF. 
-;
-;       É utilizada para dar suporte ao MDA (Monochrome Display Adapter), uma das
-;       primeiras placas de vídeo oficiais do IBM PC, lançado em 1981. 
+;       Monochrome Text Buffer (endereços de 0xB0000 a 0xB7FFF): É utilizada para
+;       dar suporte ao MDA (Monochrome Display Adapter), uma das primeiras placas
+;       de vídeo oficiais do IBM PC, lançado em 1981. 
 ;
 ;       Exibe texto monocromático com 80 colunas × 25 linhas. Cada caractere ocupa
 ;       2 bytes. O primeiro byte representa o caractere, o segundo byte o atributo
 ;       monocromático (texto normal, sublinhado, etc).
 ;
 ;
-;       Color Text Buffer: Endereços de 0xB8000 a 0xBFFFF. 
-;
-;       É a região de memória usada pelos adaptadores CGA, EGA e VGA para exibir
-;       texto colorido na tela. O modo mais comum, e o que estamos utilizando
-;       neste projeto, é o Modo 3h (80 colunas × 25 linhas). Mas há diversos
-;       outros modos de texto colorido como 00h (40 colunas × 25 linhas, colorido),
-;       02h (80 colunas × 25 linhas, monocromático, usando o buffer colorido em
-;       0xB8000). Todos estes modos usam a janela 0xB8000-0xBFFFF
+;       Color Text Buffer (endereços de 0xB8000 a 0xBFFFF): É a região de memória
+;       usada pelos adaptadores CGA, EGA e VGA para exibir texto colorido na tela.
+;       O modo mais comum, e o que estamos utilizando neste projeto, é o Modo 3h
+;       (80 colunas × 25 linhas). Mas há diversos outros modos de texto colorido
+;       como 00h (40 colunas × 25 linhas, colorido), 02h (80 colunas × 25 linhas,
+;       monocromático, usando o buffer colorido em 0xB8000). Todos estes modos usam
+;       a janela 0xB8000-0xBFFFF.
 ;
 ;       Para uma descrição mais detalhada do modo de texto VGA 3h, vá ao código-fonte
 ;       do bootloader e leia a documentação da rotina set_vga_text_mode.
@@ -641,6 +643,7 @@ kernel_entry:
 ;     configuração.
 ;
 ; =============================================================================
+
 
 init_vars:
 
@@ -666,7 +669,7 @@ init_vars:
 ; fundo azul, sem grifos visíveis.
 ;
 ; Na sequência, é impresso o texto com as instruções ("Esc=Sair F5=Atualizar")
-; no canto direito, segunda linha da tela. Com isso, se define a parte estática, 
+; no canto direito, segunda linha da tela. Com isso, se define a parte estática,
 ; do buffer, que não é alterada quando imprimir a data e hora do sistema.
 ;
 ;
@@ -677,11 +680,10 @@ init_vars:
 ;  |0xB8000 |0xB8001 |0xB8002 |0xB8003 |0xB8004 |  ...  |0xB8F9E |0xB8F9F |
 ;
 ;
-; Quando for atualizada a data e a hora, vai mudar apenas os caracteres 
-; refentes ao relógio na segunda linha, por exemplo, "21:50:00 30/05/2026".
-; Isso se faz reescrevendo apenas os 19 primeiros caracteres naquela linha,
-; sem alterar os demais caracteres no buffer de vídeo VGA, definidos nesta
-; rotina.
+; Quando for atualizada a data e a hora, vai mudar apenas os caracteres refentes
+; ao relógio na segunda linha, por exemplo, "21:50:00 30/05/2026". Isso se faz 
+; reescrevendo apenas os 19 primeiros caracteres naquela linha, sem alterar os
+; demais caracteres no buffer de vídeo VGA, definidos nesta rotina.
 ;
 ; =============================================================================
 
@@ -1077,9 +1079,10 @@ remap_pic:
 ;
 ; O HPET possui um conjunto de registradores de 64 bits. Os principais deles são:
 ;
-; GCAP_ID (General Capabilities and ID): Offsets: 0x000 (Low) e 0x004 (High).
-; Registrador apenas leitura. Indica a versão, o número de comparadores (timers)
-; disponíveis e o período do clock principal (Main Counter).
+;
+; GCAP_ID (General Capabilities and ID Register): Offsets: 0x000 (Low) e 0x004
+; (High). Registrador apenas leitura. Indica a versão, o número de comparadores
+; (timers) disponíveis e o período do clock principal (Main Counter).
 ; 
 ;   > Bits 0-7 (REV_ID): Versão do hardware HPET.
 ;
@@ -1089,6 +1092,8 @@ remap_pic:
 ; 
 ;   > Bit 13 (COUNT_SIZE_CAP): Se este bit é 1, o Main Counter é de 64 bits, se 
 ;     0, é de 32 bits.
+;
+;   > Bit 14 (Reserved): Reservado para uso futuro.
 ; 
 ;   > Bit 15 (LEG_RT_CAP): Se este bit é 1, o HPET suporta o "Legacy Replacement
 ;     Route" (substituir o PIT e RTC), se 0, não suporta.
@@ -1097,6 +1102,7 @@ remap_pic:
 ;
 ;   > Bits 32-63 (Offset 0x004 - COUNTER_CLK_PERIOD): Indica o período de um "tick"
 ;     do HPET em fentosegundos (10^-15s).
+;
 ;
 ; GEN_CONF (General Configuration): Offset: 0x010. Permite habilitar o contador 
 ; principal e configurar o modo de interrupção (Legacy Replacement).
@@ -1110,10 +1116,12 @@ remap_pic:
 ;
 ;   > Bits 2-63: Bits reservados.
 ;
+;
 ; MAIN_CNT (Main Counter Value): Offset: 0x0F0 (Low) e 0x0F4 (High). Contador de
 ; 64 bits que incrementa continuamente.
 ;
 ;   > Bits 0-63: É um contador crescente.
+;
 ;
 ; T0_CONFIG_CAP (Timer 0 Configuration and Capabilities): Offset: 0x100. Configura
 ; o comportamento do Timer 0.
@@ -1150,6 +1158,7 @@ remap_pic:
 ;     ser roteado.
 ;
 ;   > Bits 32-63: Bits reservados.
+;
 ;
 ; T0_COMPARATOR (Timer 0 Comparator Value): Offset: 0x108 (Low) e 0x10C (High).
 ; 

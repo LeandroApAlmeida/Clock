@@ -64,3 +64,15 @@ https://askleo.com/core-vs-logical-processors-what-really-powers-your-cpu/
 https://patents.google.com/patent/US5904733A/en
 
 https://community.intel.com/t5/Intel-Moderncode-for-Parallel/Halting-Restarting-a-BSP/m-p/810210?profile.language=de&countrylabel=Peru
+
+https://uefi.org/specifications
+
+https://learn.microsoft.com/pt-br/windows-hardware/drivers/bringup/acpi-system-description-tables
+
+https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/software-developers-hpet-spec-1-0a.pdf
+
+https://wiki.osdev.org/HPET#HPET_registers
+
+https://cdrdv2.intel.com/v1/dl/getContent/671200
+
+https://wiki.osdev.org/MTRR
