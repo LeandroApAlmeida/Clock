@@ -147,7 +147,7 @@ kernel_entry:
 	
 ; =============================================================================
 ;
-; INICIALIZAÇÃO DAS VARIÁVEIS
+; INICIALIZAR VARIÁVEIS
 ;
 ;
 ; Sendo didático, em assembly não há variáveis como em linguagens de programação
@@ -574,7 +574,7 @@ kernel_entry:
 ;     histórica do PC. Portanto, não é necessário (nem possível) fazer uma busca
 ;     via ACPI para resolver o endereço deste dispositivo.
 ;
-;     Em sistemas com firmware BIOS, a memória de vídeo VGA é dividida em 3 regiões:
+;     Em sistemas com firmware BIOS, a memória de vídeo VGA é dividida em 3 janelas:
 ;
 ;
 ;
@@ -607,36 +607,31 @@ kernel_entry:
 ;       VGA Graphics Memory (endereços de 0xA0000 a 0xAFFFF): É utilizada pelo modo
 ;       gráfico (pixels). Podem ser configurados diversos modos gráficos como VGA
 ;       13h (320 x 200 pixels, com 256 cores), VGA 12h (640 x 480 pixels, com 16 
-;       cores), VGA 10h (640 × 350 pixels, com 16 cores). Todos estes modos usam
-;       a janela 0xA0000-0xAFFFF.
+;       cores), VGA 10h (640 × 350 pixels, com 16 cores).
 ;
 ;       
 ;       Monochrome Text Buffer (endereços de 0xB0000 a 0xB7FFF): É utilizada para
 ;       dar suporte ao MDA (Monochrome Display Adapter), uma das primeiras placas
-;       de vídeo oficiais do IBM PC, lançado em 1981. 
+;       de vídeo oficiais do IBM PC, lançado em 1981. Neste modo, exibe texto 
+;       monocromático com 80 colunas × 25 linhas, cada caractere ocupando 2 bytes. 
+;       O primeiro byte representa o caractere, o segundo byte o atributo (texto 
+;       normal, sublinhado, etc).
 ;
-;       Exibe texto monocromático com 80 colunas × 25 linhas. Cada caractere ocupa
-;       2 bytes. O primeiro byte representa o caractere, o segundo byte o atributo
-;       monocromático (texto normal, sublinhado, etc).
 ;
-;
-;       Color Text Buffer (endereços de 0xB8000 a 0xBFFFF): É a região de memória
+;       Color Text Buffer (endereços de 0xB8000 a 0xBFFFF): É a janela de memória
 ;       usada pelos adaptadores CGA, EGA e VGA para exibir texto colorido na tela.
-;       O modo mais comum, e o que estamos utilizando neste projeto, é o Modo 3h
-;       (80 colunas × 25 linhas). Mas há diversos outros modos de texto colorido
-;       como 00h (40 colunas × 25 linhas, colorido), 02h (80 colunas × 25 linhas,
-;       monocromático, usando o buffer colorido em 0xB8000). Todos estes modos usam
-;       a janela 0xB8000-0xBFFFF.
-;
-;       Para uma descrição mais detalhada do modo de texto VGA 3h, vá ao código-fonte
-;       do bootloader e leia a documentação da rotina set_vga_text_mode.
+;       O modo mais comum, e que estamos utilizando neste projeto, é o Modo 3h
+;       (80 colunas × 25 linhas, com 16 cores de texto e 8 cores de fundo). Há
+;       diversos outros modos de texto colorido como 00h (40 colunas × 25 linhas, 
+;       colorido), 02h (80 colunas × 25 linhas, monocromático, usando o buffer 
+;       colorido em 0xB8000).
 ;
 ;
-;     Embora existam três regiões distintas (0xA0000, 0xB0000 e 0xB8000), elas 
-;     não correspondem necessariamente a três áreas físicas diferentes de memória.
-;     Em um adaptador VGA, estas regiões são normalmente janelas de acesso para 
-;     recursos internos do mesmo controlador de vídeo, mantidas por razões de 
-;     compatibilidade com os adaptadores MDA, CGA e EGA.
+;     Embora existam três janelas, elas não correspondem necessariamente a três 
+;     áreas físicas diferentes de memória. Em um adaptador VGA, estas regiões 
+;     são normalmente janelas de acesso para recursos internos do mesmo controlador 
+;     de vídeo, mantidas por razões de compatibilidade com os adaptadores MDA, 
+;     CGA e EGA.
 ;
 ;     Assim como com o HPET, o BIOS faz a configuração básica de MTTR para esta
 ;     região durante o POST, definindo-a como Uncached, e vamos manter esta 
@@ -658,19 +653,22 @@ init_vars:
 
 ; =============================================================================
 ;
-; PREENCHIMENTO DO BUFFER DE VÍDEO EM MODO VGA 3h
+; PREENCHER O FRAMEBUFFER DO VGA
 ;
 ;
-; O objetivo desta rotina é preencher todo o buffer de vídeo em modo VGA 3h com
-; o caractere 0x1F20 (0b0001111100100000). Este é o caractere de espaço, com cor
+; O objetivo desta rotina é preencher o buffer de vídeo em modo VGA 3h com o 
+; caractere 0x1F20 (0b0001111100100000). Este é o caractere de espaço, com cor
 ; de texto branca e fundo azul (consulte a documentação da rotina set_vga_text_mode
 ; no código-fonte do bootloader para mais informações sobre o modo de texto VGA 
 ; 3h e sobre este caractere específico). Isso fará com que toda a tela mostre um 
 ; fundo azul, sem grifos visíveis.
 ;
-; Na sequência, é impresso o texto com as instruções ("Esc=Sair F5=Atualizar")
-; no canto direito, segunda linha da tela. Com isso, se define a parte estática,
-; do buffer, que não é alterada quando imprimir a data e hora do sistema.
+;
+; -----------------------------------------------------------------------------
+; Nota: Como o modo VGA 3h exibe 80 colunas x 25 linhas de caracteres, cada 
+; caractere ocupando 2 bytes, temos então o preenchimento de 80 x 25 x 2 = 4000 
+; bytes nesta janela de Video Memory. Como o endereço inicial da janela começa 
+; em 0xB8000, serão gravados os bytes de 0xB8000 até 0xB8F9F.
 ;
 ;
 ;                             Color Text Buffer
@@ -680,6 +678,12 @@ init_vars:
 ;  └────────┴────────┴────────┴────────┴────────┴──   ──┴────────┴────────┘
 ;  |0xB8000 |0xB8001 |0xB8002 |0xB8003 |0xB8004 |  ...  |0xB8F9E |0xB8F9F |
 ;
+; -----------------------------------------------------------------------------
+;
+;
+; Na sequência, é impresso o texto com as instruções ("Esc=Sair F5=Atualizar")
+; no canto direito, segunda linha da tela. Com isso, se define a parte estática,
+; do buffer, que não é alterada quando atualizar a data e hora do sistema.
 ;
 ; Quando for atualizada a data e a hora, vai mudar apenas os caracteres refentes
 ; ao relógio na segunda linha, por exemplo, "21:50:00 30/05/2026". Isso se faz 
@@ -727,7 +731,7 @@ fill_vga_buffer:
 	
 ; =============================================================================
 ;
-; OCULTAÇÃO DO CURSOR
+; OCULTAR CURSOR
 ;
 ;
 ; Oculta o cursor de texto no prompt do relógio usando I/O port-mapped I/O (PMIO).
@@ -740,6 +744,9 @@ fill_vga_buffer:
 ;   > 0x0B: Cursor End Register.
 ;
 ;
+; através das portas 0x3D4 (índice) e 0x3D5 (dados).
+;
+;
 ; Esses registradores controlam:
 ;
 ;
@@ -749,20 +756,14 @@ fill_vga_buffer:
 ;
 ;   > blink vs disable.
 ;
-;
-; Nota:
-;
-; O VGA clássico mistura o dois tipos de acesso: MMIO e PMIO.
-;
 ; =============================================================================
 
 
 hide_cursor:
     
-	mov dx, 0x3D4                 ; Coloca o endereço do registrador de controle
-	                              ; do CRT (CRTC Index) em DX. A porta de I/O 
-								  ; 0x3D4 seleciona qual registrador interno do 
-								  ; CRT acessar.       
+	mov dx, 0x3D4                 ; Coloca o endereço da porta 0x3D4 em DX. A  
+	                              ; porta de I/O 0x3D4 seleciona qual registrador
+								  ; interno do CRT acessar.       
     
 	mov al, 0x0A                  ; Seleciona o registrador de cursor alto (Cursor
 	                              ; Start Register) na porta 0x3D4. Este registrador
@@ -783,9 +784,8 @@ hide_cursor:
 	out dx, al                    ; Escreve o valor 0x20 no registrador 0x0A do
 	                              ; CRT. Isso desativa o cursor na tela.
 
-    mov dx, 0x3D4                 ; Coloca o endereço do registrador de controle
-	                              ; do CRT (CRTC Index) em DX. Vamos manipular o 
-								  ; registrador 0x0B agora.        
+    mov dx, 0x3D4                 ; Coloca o endereço da porta 0x3D4 em DX. Vamos 
+	                              ; manipular o registrador 0x0B agora.        
     
 	mov al, 0x0B                  ; Seleciona o registrador de cursor baixo (Cursor
 	                              ; End Register) na porta 0x3D4. Este registrador 
@@ -811,8 +811,11 @@ hide_cursor:
 
 ; =============================================================================
 ;
-; Configura a tabela IDT. Serão mapeados apenas 2 tratadores de interrupção
-; neste kernel (handlers), ficando o restante das entradas da tabela UDT sem 
+; INICIALIZAR A IDT
+;
+;
+; Configura as entradas (gates) da tabela IDT. Serão mapeados apenas 2 tratadores
+; de interrupção neste kernel (handlers), ficando o restante das entradas sem 
 ; tratadores definidos. 
 ;
 ;
@@ -822,7 +825,8 @@ hide_cursor:
 ;   > Handler da interrupção de teclado (IRQ1), mapeado na entrada 33 (gate 33).
 ;
 ;
-; Os bytes que serão gravados em cada entrada serão os seguintes:
+; Cada entrada terá os seguintes bytes (veja detalhes de cada campo no comentário
+; da tabela IDT):
 ;
 ;
 ;   Byte    Conteúdo    Descrição
@@ -944,6 +948,9 @@ set_gate_33:
 
 ; =============================================================================
 ;
+; REMAPEAR O PIC
+;
+;
 ; Faz o remapeamento do PIC (Programmable Interrupt Controller). Por padrão, o 
 ; BIOS configura o PIC para que as IRQs usem as entradas de 0x08 a 0x0F (PIC 
 ; Mestre) e de 0x70 a 0x77 (PIC Escravo) da IVT. Mas em Modo Protegido não usa a
@@ -962,17 +969,22 @@ set_gate_33:
 ; O PIC é configurado através de ICWs (Initialization Command Words). Serão 4 os
 ; comandos enviados em sequência para as portas de I/O do PIC (Mestre e Escravo):
 ;
+;
 ; > ICW1: Envia o bitmask 0x11 para ambos os PICs (Mestre e Escravo). Isso diz a
 ;   eles para esperar mais 3 palavras de controle (ICW2, ICW3 e ICW4) e que estará
 ;   operando em modo cascata (SNGL = 0).
 ;
+;
 ; > ICW2: Resolve o conflito com a Intel (faz o remapeamento das IRQs para a entrada
 ;   32 e adiante da IDT).
+;
 ;
 ; > ICW3: O PIC Escravo está conectado fisicamente a um pino do Mestre. Este comando
 ;   sincroniza os dois chips para trabalharem juntos, em cascata.
 ;
+;
 ; > ICW4: Define o modo de ambiente para x86.
+;
 ;
 ; Nota:
 ;
@@ -1025,7 +1037,7 @@ remap_pic:
                                   ; PIC Escravo (porta 0xA1). O PIC Escravo controla
 								  ; as IRQs 8 a 15. Elas dispararão as interrupções 
 								  ; 40 a 47 na IDT.
-								  						  
+
 ; -----------------------------------------------------------------------------
 ; Comando ICW3:
 ; -----------------------------------------------------------------------------
@@ -1074,12 +1086,15 @@ remap_pic:
 
 ; =============================================================================
 ;
+; CONFIGURAR O HPET
+;
+;
 ; Por padrão, a interrupção de relógio do sistema (IRQ0) era gerada pelo PIT 
 ; (Programmable Interval Timer) em computadores mais antigos. Em 2005 a Intel e
 ; a Microsoft introduziram o HPET para substituí-lo. Este componente oferece 
 ; frequências muito mais altas e maior precisão.
 ;
-; Nesta etapa, vamos configurar o HPET, e definí-lo como o gerador de interrupção 
+; Nesta rotina, vamos configurar o HPET, e definí-lo como o gerador de interrupção 
 ; de relógio para o kernel. Como discutido anteriormente, vamos admitir que ele
 ; está mapeado no endereço de memória padrão (0xFED00000), para evitar uma busca
 ; nas tabelas ACPI, o que deixaria o código Assembly mais complexo. Logo, todos
@@ -1427,13 +1442,18 @@ setup_hpet:
 
 ; =============================================================================
 ;
+; CONFIGURAR O TSC
+;
+;
 ; Faz a calibração do TSC (Time Stamp Counter). O TSC é um registrador de 64 bits
 ; interno de cada núcleo da CPU. Ele funciona como um contador de ciclos de clock.
 ;
 ; Existem dois tipos de TSC:
 ;
+;
 ; > Variant TSC (Antigo): A frequência do TSC muda se a CPU entrar em modo de 
 ;   economia de energia. Isso torna a calibração inútil se o clock cair.
+;
 ;
 ; > Invariant TSC (Moderno): O TSC incrementa  em uma frequência constante, 
 ;   independentemente do estado de energia da CPU. Este é o tipo utilizado neste
