@@ -1837,14 +1837,14 @@ print_string:
 ;
 ;                   ├ Flags ┤           ├── Access Byte ──┤    
 ;      63           55  54 53 52      47 45-6 44 43 41-2 40              32
-;      ↓             ↓  ↙ ↙ ↙          ↘  ↓  ↙  ↙ ↙↘   ↓               ↓
+;      ↓             ↓  ↙ ↙ ↙          ↘  ↓  ↙  ↙ ↙↘   ↓                 ↓
 ;      ┌────────────┬─┬─┬─┬─┬───────────┬─┬─┬─┬───────────┬──────────────┐
 ;      │            │ │D│ │A│           │ │D│ │  Type     │              │
-;      │ Base 31:24 │G│/│L│V│ Limite    │P│P│S├─┬───┬───┬─┤  Base 23:16  │
+;      │ Base 31:24 │G│/│L│V│ Limit     │P│P│S├─┬───┬───┬─┤  Base 23:16  │
 ;      │            │ │B│ │L│ 19:16     │ │L│ │E│D/C│R/W│A│              │
 ;      ├────────────┴─┴─┴─┴─┴───────────┼─┴─┴─┴─┴───┴───┴─┴──────────────┤
 ;      │                                │                                │
-;      │ Base 15:00                     │ Limite 15:00                   │
+;      │ Base 15:00                     │ Limit 15:00                    │
 ;      │                                │                                │
 ;      └────────────────────────────────┴────────────────────────────────┘
 ;      ↑                                ↑                                ↑
@@ -1855,11 +1855,11 @@ print_string:
 ;
 ;   Endereço inicial do segmento, com 32 bits. É formado pela junção dos campos:
 ;
-;     > Base 15:00 (Bits 16–31)
+;     > Base 15:00 (Bits 16-31)
 ;
-;     > Base 23:16 (Bits 32–39)
+;     > Base 23:16 (Bits 32-39)
 ;
-;     > Base 31:24 (Bits 56–63)
+;     > Base 31:24 (Bits 56-63)
 ;
 ;   Juntando-se os bits dos três campos, forma-se o endereço da base na memória:
 ;
@@ -1874,9 +1874,9 @@ print_string:
 ;
 ;   Define o tamanho do segmento, com 20 bits. É formado pela junção dos campos:
 ;
-;     > Limit 15:00 (bits 0–15)
+;     > Limit 15:00 (bits 0-15)
 ;
-;     > Limit 19:16 (bits 48–51)
+;     > Limit 19:16 (bits 48-51)
 ;
 ;   Juntando-se os bits dos dois campos, tem-se:
 ;
@@ -1953,7 +1953,7 @@ print_string:
 ;
 ; ● DPL (Descriptor Privilege Level)
 ;
-;   O campo Descriptor Privilege Level, com 2 bits (Bits 45–46), define o nível 
+;   O campo Descriptor Privilege Level, com 2 bits (Bits 45-46), define o nível 
 ;   de privilégio mínimo necessário para acessar o descritor:
 ;
 ;     > 0 → Máximo privilégio.

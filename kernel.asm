@@ -814,18 +814,17 @@ hide_cursor:
 ; INICIALIZAR A IDT
 ;
 ;
-; Configura as entradas (gates) da tabela IDT. Serão mapeados apenas 2 tratadores
-; de interrupção neste kernel (handlers), ficando o restante das entradas sem 
-; tratadores definidos. 
+; Configura os gates da tabela IDT. Serão mapeadas apenas 2 entradas neste kernel, 
+; ficando o restante das entradas sem tratadores definidos. 
 ;
 ;
-;   > Handler da interrupção de relógio (IRQ0), mapeado na entrada 32 (gate 32).
+;   > Handler da interrupção de relógio (IRQ0), mapeado no gate 32.
 ;
 ;
-;   > Handler da interrupção de teclado (IRQ1), mapeado na entrada 33 (gate 33).
+;   > Handler da interrupção de teclado (IRQ1), mapeado no gate 33.
 ;
 ;
-; Cada entrada terá os seguintes bytes (veja detalhes de cada campo no comentário
+; Cada gate terá os seguintes bytes (veja detalhes de cada campo no comentário
 ; da tabela IDT):
 ;
 ;
@@ -837,8 +836,7 @@ hide_cursor:
 ;
 ;   4       0x0         Byte reservado.
 ;
-;   5       0x8E        Atributos (Presente=1, DPL=0, Tipo=Interrupt Gate 
-;                       32-bit).
+;   5       0x8E        Atributos (P=1, DPL=00, S=0 Tipo=1110).
 ;
 ;   6-7     AX (High)   Parte alta do endereço da rotina (little-endian).
 ;
@@ -866,13 +864,13 @@ set_gate_32:
 	                              ; tratamento da interrupção de relógio em 
 								  ; EAX.
 								  
-    mov edi, idt_table + (32 * 8) ; Copia o endereço de memória da entrada 32 na 
+    mov edi, idt_table + (32 * 8) ; Copia o endereço de memória da entrada 32 na
 	                              ; tabela IDT em EDI. Multipliquei por oito,
 								  ; pois cada entrada na IDT tem 8 bytes.
 								  
 	mov word [edi + 0], ax        ; Grava os 16 bits menos significativos do
                                   ; endereço da rotina (offset baixo) na
-                                  ; entrada da IDT.  
+                                  ; entrada da IDT.
 								  
     mov word [edi+2], 0x08        ; Define o Seletor de Segmento na entrada 32
 	                              ; da IDT. O valor 0x08 aponta para o segmento
@@ -884,11 +882,13 @@ set_gate_32:
 	
 	mov byte [edi + 5], 0x8E      ; Define os atributos da entrada:
 	                              ;
-                                  ; > P = 1 (presente)
+								  ; > S = 0.
 								  ;
-								  ; > DPL = 0 (nível 0)
+                                  ; > P = 1 (presente).
 								  ;
-                                  ; > Tipo = 1110 (Interrupt Gate 32-bit).      						 
+								  ; > DPL = 00 (nível 0).
+								  ;
+                                  ; > Tipo = 1110 (Interrupt Gate 32-bit).   						 
 								  
     shr eax, 16                   ; Desloca o endereço da rotina em EAX para a
 	                              ; direita, para pegar os 16 bits superiores
@@ -928,9 +928,11 @@ set_gate_33:
 								  
     mov byte [edi + 5], 0x8E      ; Define os atributos da entrada:
 	                              ;
-                                  ; > P = 1 (presente)
+								  ; > S = 0.
 								  ;
-								  ; > DPL = 0 (nível 0)
+                                  ; > P = 1 (presente).
+								  ;
+								  ; > DPL = 0 (nível 0).
 								  ;
                                   ; > Tipo = 1110 (Interrupt Gate 32-bit).    
 								  
@@ -1090,8 +1092,8 @@ remap_pic:
 ;
 ;
 ; Por padrão, a interrupção de relógio do sistema (IRQ0) era gerada pelo PIT 
-; (Programmable Interval Timer) em computadores mais antigos. Em 2005 a Intel e
-; a Microsoft introduziram o HPET para substituí-lo. Este componente oferece 
+; (Programmable Interval Timer) em computadores mais antigos. Em 2005 a Intel 
+; e a Microsoft introduziram o HPET para substituí-lo. Este componente oferece 
 ; frequências muito mais altas e maior precisão.
 ;
 ; Nesta rotina, vamos configurar o HPET, e definí-lo como o gerador de interrupção 
@@ -1193,7 +1195,6 @@ remap_pic:
 	
 	
 setup_hpet:
-
 						
 	push esi                      ; Guarda o valor de ESI na pilha do kernel.
 
@@ -1494,7 +1495,6 @@ setup_tsc:
     call tsc_fallback
 
 .done:
-
 
 ; -----------------------------------------------------------------------------
 ; Calibra o TSC usando o HPET.								  
@@ -2922,50 +2922,460 @@ tsc_inv_fallback:
 	
 ; =============================================================================
 ;
-; IDT (Interrupt Descriptor Table)
+; IDT (INTERRUPT DESCRIPTION TABLE)
 ;
-; A IDT é uma tabela na memória com 256 entradas (gates), cada entrada com 8 bytes
-; em Modo Protegido. Ela permite que o processador saiba o que fazer quando ocorre
-; uma interrupção ou exceção (ex.: teclado, timer, erro de divisão por zero, etc.).
 ;
-; Cada entrada (gate) da IDT em Modo Protegido tem os seguintes campos:
+; A  IDT (Interrupt Descriptor Table) é uma tabela usada pelo processador para 
+; descobrir para onde transferir a execução quando ocorre uma exceção ou interrupção.
+; Em modo protegido, de 32 bits, ela têm até 256 entradas, numeradas de 0 a 255, 
+; cada entrada ocupando 8 bytes.
 ;
-;   Bits  0..15  -> offset_low     (parte baixa do endereço do handler)
+; Para encontrar a IDT o processador usa o registrador IDTR, que contém os seguintes
+; campos:
 ;
-;   Bits 16..31  -> selector       (selector de segmento de código no GDT)
 ;
-;   Bits 32..39  -> zero           (sempre 0)
+;       47                                      16 15                    0
+;       ┌─────────────────────────────────────────┬──────────────────────┐
+;       │ Base                                    │ Limit                │
+;       └─────────────────────────────────────────┴──────────────────────┘
 ;
-;   Bits 40..47  -> type_attr      (tipo + privilégios + presente)
 ;
-;   Bits 48..63  -> offset_high    (parte alta do endereço do handler)
+; ● Limite (Limit)
 ;
-; Como usamos "dq 0", todas as entradas estão inicialmente zeradas:
+;   O campo Limit representa o maior offset válido dentro da tabela IDT, ou
+;   seja:
 ;
-;   > Offset = 0
+;     LIMIT = tamanho_da_IDT_em_bytes - 1
 ;
-;   > Selector = 0
+;   Por exemplo, a IDT abaixo tem 256 entradas, com cada entrada ocupando 8 bytes,
+;   então:
 ;
-;   > Flags = 0
+;     LIMIT = (256 × 8 = 2048) - 1 ⇒ 2047 ⇒ 0x07FF
 ;
-; Isso significa que, no estado atual:
+;     LIMIT = 0x07FF
 ;
-;   > Nenhuma interrupção possui handler válido.
 ;
-;   > Qualquer interrupção/exceção causará falha.
+; ● Base (Base)
 ;
-; Notas:
+;   O campo Base contém o endereço linear do primeiro byte da IDT. Por exemplo,
+;   suponha que Base = 0x100000. Isso significa que o primeiro byte da IDT está
+;   no endereço linear 0x100000. Isso não significa que ele estará neste endereço
+;   físico (no caso deste projeto, que não habilita a paginação, o endereço linear
+;   da IDT corresponderá ao endereço físico).
 ;
-; Na inicialização do kernel, configuramos a entrada 32 (gate 32) para tratamento
-; da interrupção de relógio (IRQ0). As demais interrupções (teclado, mouse, etc)
-; não serão habilitadas para este kernel.
 ;
-; Em Modo Protegido O PIC vai ser remapeado para que as IRQs apontem para as
-; entradas de 32 adiante da IDT. As entradas de 0 a 31 são utilizadas pela
-; Intel para interrupções do processador, logo, mapeamos para que as IRQS do PIC 
-; Mestre o do Pic Escravo usem as entradas imediatamente adiante destas.
+; A relação entre o IDTR e a tabela IDT pode ser exemplificada neste diagrama,
+; considerando uma IDT com 256 entradas, iniciando no endereço 0x100000:
+;
+;
+;                           IDTR
+;       ┌───────────────────────────┬────────────────┐
+; ┌─────┤ Base (16..47)             │ Limite (0..15) ├────────────────────────┐
+; │     └───────────────────────────┴────────────────┘                        │
+; │                                                                           │
+; │                                                                           │
+; │                                                                           │
+; │                                                     IDT                   │
+; │                                   0x1007FF ┌────────────────────┐ 0x7FF <─┘
+; │                                            │ Entrada 255        │         
+; │                                   0x1007F7 │────────────────────│ 0x7F7
+; │                                            ......................
+; │                                            ......................
+; │                                            ......................
+; │                                   0x100018 │────────────────────│ 0x17
+; │                                            │ Entrada 2          │
+; │                                   0x100010 │────────────────────│ 0x0F
+; │                                            │ Entrada 1          │
+; │                                   0x100008 │────────────────────│ 0x07
+; │                                            │ Entrada 0          │
+; └─────────────────────────────────> 0x100000 └────────────────────┘ 0x00
+; 
+;
+; Os valores à esquerda do diagrama da tabela IDT representam o endereço linear
+; e os à direita o offset da entrada na tabela.
+;
+;
+; ENTRADAS DA IDT
+;
+;
+; Em Modo Protegido, cada entrada da IDT tem 8 bytes (64 bts). Os 64 bits de uma
+; entrada, que contém um interrupt gate que especifica o handler a ser executado, 
+; compõem os seguintes campos:
+;
+;
+;     63                           48  46 44  43    39                32
+;     ↓                              ↘  ↓ ↓  ↙      ↓                 ↓
+;     ┌───────────────────────────────┬─┬─┬─┬───────┬─────────────────┐
+;     │ Offset 31:16                  │P│D│S│ Type  │ Reserved        │
+;     │                               │ │P│ │       │                 │
+;     │                               │ │L│ │       │                 │
+;     ├───────────────────────────────┼─┴─┴─┴───────┴─────────────────┤
+;     │ Selector                      │ Offset 15:00                  │
+;     │                               │                               │
+;     └───────────────────────────────┴───────────────────────────────┘
+;     ↑                               ↑                               ↑
+;     31                              15                              0
+;
+;
+; ● Endereço do Handle (Offset)
+;
+;   O endereço do handle, com 32 bits, é formado pela junção dos campos:
+;
+;     > Offset 15:00 (Bits 0-15): Parte baixa do endereço do handler.
+;
+;     > Offset 31:16 (Bits 48-63): Parte alta do endereço do handler.
+;
+;   Este endereço é o offset do handle no segmento apontado pelo Seletor de
+;   Segmento de Código no campo Selector (veja abaixo).
+;
+;
+; ● Seletor do Segmento de Código (Selector)
+;
+;   O campo Selector (Bits 16-31) é o Seletor do Segmento de Código na GDT (ou 
+;   LDT) onde está localizado o handler (no caso deste projeto, 0x08). O endereço
+;   do handler não é um endereço linear armazenado na IDT. Ele é obtido combinando
+;   o segmento indicado pelo Selector com o Offset acima.
+;
+;
+; ● Reservado (Reserved)
+;
+;   Os bits de 32 a 39 são reservados, sendo que os bits de 36 a 39 devem ser
+;   definidos como zero (0x0).
+;
+;
+; ● Tipo (Type)
+;
+;   O campo Type (bits 40-43) identifica o tipo do descritor de gate. Para entradas
+;   da IDT no modo protegido, os tipos possíveis são:
+;
+;   ┌───────┬──────────────────┬──────────────────────────────────────────────┐
+;   │ TYPE  │ TIPO             │ DESCRIÇÃO                                    │
+;   ╞═══════╪══════════════════╪══════════════════════════════════════════════╡
+;   │ 0101b │ Task Gate        │ Realiza uma troca de tarefa usando uma TSS.  │
+;   ├───────┼──────────────────┼──────────────────────────────────────────────┤
+;   │ 0110b │ 16-bit Interrupt │ Transfere execução para um handler de 16 bits│
+;   │       │ Gate             │ e limpa o IF.                                │
+;   ├───────┼──────────────────┼──────────────────────────────────────────────┤
+;   │ 0111b │ 16-bit Trap Gate │ Transfere execução para um handler de 16 bits│
+;   │       │                  │ e mantém o IF.                               │
+;   ├───────┼──────────────────┼──────────────────────────────────────────────┤
+;   │ 1110b │ 32-bit Interrupt │ Transfere execução para um handler de 32 bits│
+;   │       │ Gate             │ e limpa o IF.                                │
+;   ├───────┼──────────────────┼──────────────────────────────────────────────┤
+;   │ 1111b │ 32-bit Trap Gate │ Transfere execução para um handler de 32 bits│
+;   │       │                  │ e mantém o IF.                               │
+;   └───────┴──────────────────┴──────────────────────────────────────────────┘
+;
+;
+; ● S (Segment)
+;
+;   Bit 44. Diferencia um descritor de sistema de um descritor de segmento de 
+;   código/dados:
+;
+;     > 0 → Descritor de sistema.
+;
+;     > 1 → Descritor de segmento de código/dados.
+;
+;   Para uma entrada de IDT do tipo gate, esse bit deve ser 0.
+;
+;
+; ● DPL (Descriptor Privilege Level)
+;
+;   O campo Descriptor Privilege Level (Bits 45-46), determina quais níveis de
+;   privilégio podem invocar explicitamente o gate.
+;
+;   Os valores possíveis são:
+;
+;     > 0 → Maior nível de privilégio (ring 0).
+;
+;     > 1 → Nível de privilégio intermediário (ring 1).
+;
+;     > 2 → Nível de privilégio intermediário (ring 2).
+;
+;     > 3 → Menor nível de privilégio (ring 3).
+;
+;   Para uma instrução INT n, o processador compara o CPL do código que executa
+;   o INT com o DPL do gate. Para ivocação, o CPL precisa ser menor ou igual ao
+;   DPL:
+;
+;     CPL ≤ DPL
+;
+;   Dessa forma:
+;
+;     > DPL = 0 → CPL 0 pode executar INT n.
+;
+;     > DPL = 1 → CPL 0 ou 1 pode executar INT n.
+;
+;     > DPL = 2 → CPL 0, 1 ou 2 pode executar INT n.
+;
+;     > DPL = 3 → CPL 0, 1, 2 ou 3 pode executar INT n.
+;
+;
+; ● P (Present)
+;
+;   Bit 47. Indica se o gate está presente e é válido:
+;
+;     > 0 → Gate não presente.
+;
+;     > 1 → Gate presente.
+;
+;   Para um Gate utilizável este bit deve ser 1. Se o processador tentar utilizar
+;   uma entrada cujo P = 0, gera a exceção: #NP — Segment Not Present.
+;
+;
+; ENTRADAS RESERVADAS
+;
+;
+; A arquitetura x86 reserva as entradas de 0x00 (0) a 0x1F (31) da IDT para 
+; exceções e interrupções internas da CPU.
+;
+;
+;                     IDT
+;            │                    │
+;            │────────────────────│ ┬
+;            │ Entrada 31         │ │
+;            │────────────────────│ │
+;            ...................... │
+;            ...................... │
+;            ...................... │
+;            │────────────────────│ │
+;            │ Entrada 5          │ │
+;            │────────────────────│ │
+;            │ Entrada 4          │ │ Reservado (Arquitetura x86)
+;            │────────────────────│ │
+;            │ Entrada 3          │ │
+;            │────────────────────│ │
+;            │ Entrada 2          │ │
+;            │────────────────────│ │
+;            │ Entrada 1          │ │
+;            │────────────────────│ │
+;            │ Entrada 0          │ │
+;            └────────────────────┘ ┴
+;
+;
+; As entradas reservadas pela arquitetura x86 são:
+;
+;
+; ┌───────┬───────────────────────────────────────────────────────────────────┐
+; │ VETOR │ NOME                                                              │
+; ╞═══════╪═══════════════════════════════════════════════════════════════════╡
+; │ 0x00  │ #DE - Divide Error (Divisão por zero ou resultado de divisão      │
+; │       │ inválido)                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x01  │ #DB - Debug (Exceção de depuração)                                │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x02  │ NMI - Non-Maskable Interrupt (Interrupção não mascarável)         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x03  │ #BP - Breakpoint (Instrução INT3)                                 │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x04  │ #OF - Overflow (Overflow detectado pela instrução INTO)           │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x05  │ #BR - Bound Range Exceeded (Limite de intervalo excedido pela     │
+; │       │ instrução BOUND)                                                  │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x06  │ #UD - Invalid Opcode (Opcode/instrução inválida)                  │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x07  │ #NM - Device Not Available (Dispositivo não disponível)           │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x08  │ #DF - Double Fault (Falha dupla)                                  │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x09  │ Coprocessor Segment Overrun (Exceção legada. Não utilizada nas    │
+; │       │ CPUs modernas)                                                    │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0A  │ #TS - Invalid TSS (TSS inválido)                                  │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0B  │ #NP - Segment Not Present (Segmento não presente)                 │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0C  │ #SS - Stack-Segment Fault (Falha no segmento da pilha)            │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0D  │ #GP - General Protection (Falha geral de proteção)                │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0E  │ #PF - Page Fault (Falha de página)                                │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x0F  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x10  │ #MF - x87 Floating-Point Error (Erro de ponto flutuante x87)      │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x11  │ #AC - Alignment Check (Verificação de alinhamento)                │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x12  │ #MC - Machine Check (Erro de hardware detectado pela CPU)         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x13  │ #XM/#XF - SIMD Floating-Point Exception (Exceção de ponto         │
+; │       │ flutuante SIMD)                                                   │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x14  │ #VE - Virtualization Exception (Exceção de virtualização)         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x15  │ #CP - Control Protection Exception (Proteção de controle)         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x16  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x17  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x18  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x19  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1A  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1B  │ Reservado                                                         │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1C  │ #HV - Hypervisor Injection Exception                              │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1D  │ #VC - VMM Communication Exception                                 │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1E  │ #SX - Security Exception                                          │
+; ├───────┼───────────────────────────────────────────────────────────────────┤
+; │ 0x1F  │ Reservado                                                         │
+; └───────┴───────────────────────────────────────────────────────────────────┘
+;
+;
+; Ao entrar em Modo Protegido, deve-se remapear o PIC, que usava vetores para a 
+; IVT (Interrupt Vector Table) em Modo Real, para apontar para as entradas a partir
+; da 32 da IDT.
+;
+; O remapeamento do PIC neste código é feito da seguinte forma na rotina remap_pic:
+;
+;
+;                     IDT
+;            │                    │
+;            │────────────────────│ ┼
+;            │                    │ │
+;            │  Entradas 40 a 47  │ │ PIC Escravo (IRQs 8 a 15)
+;            │                    │ │ 
+;            │────────────────────│ ┼
+;            │                    │ │
+;            │  Entradas 32 a 39  │ │ PIC Mestre (IRQs 0 a 7)
+;            │                    │ │
+;            │────────────────────│ ┼
+;            │                    │ │
+;            │                    │ │
+;            │                    │ │
+;            │  Entradas  0 a 31  │ │ Reservado (Arquitetura x86)
+;            │                    │ │
+;            │                    │ │
+;            │                    │ │
+;            └────────────────────┘ ┴
+; 
+;
+; ● Entradas 0 a 31
+;
+;   As entradas de 0 (0x0) até 31 (0x1F), como visto, são reservadas pela 
+;   arquitetura x86.
+;
+;
+; ● Entradas 32 a 39
+;
+;   As entradas de 32 (0x20) a 39 (0x27) serão destinadas para as interrupções 
+;   do PIC Mestre (PIC Master).
+;
+;   As interrupções do PIC Mestre são as seguintes:
+;
+;   ┌───────┬─────────────────────────────────────────────────────────────────┐
+;   │ IRQ   │ DISPOSITIVO/FUNÇÃO TRADICIONAL                                  │
+;   ╞═══════╪═════════════════════════════════════════════════════════════════╡
+;   │ IRQ0  │ Timer do sistema - PIT (aqui substituimos pelo HPET)            │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ1  │ Teclado                                                         │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ2  │ Cascade - conecta ao PIC escravo                                │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ3  │ COM2 / porta serial                                             │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ4  │ COM1 / porta serial                                             │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ5  │ LPT2 / porta paralela (historicamente)                          │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ6  │ Controlador de disquete                                         │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ7  │ LPT1 / porta paralela (historicamente)                          │
+;   └───────┴─────────────────────────────────────────────────────────────────┘
+;   
+;
+; ● Entradas 40 a 47
+;
+;   As entradas de 40 (0x28) a 47 (0x2F) serão destinadas para as interrupções 
+;   do PIC Escravo (PIC Slave).
+;
+;   As interrupções do PIC Escravo são as seguintes:
+;
+;   ┌───────┬─────────────────────────────────────────────────────────────────┐
+;   │ IRQ   │ DISPOSITIVO/FUNÇÃO TRADICIONAL                                  │
+;   ╞═══════╪═════════════════════════════════════════════════════════════════╡
+;   │ IRQ8  │ RTC - Real-Time Clock                                           │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ9  │ Disponível / redirecionada historicamente de IRQ2               │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ10 │ Disponível                                                      │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ11 │ Disponível                                                      │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ12 │ Mouse PS/2                                                      │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ13 │ Coprocessador matemático / FPU                                  │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ14 │ IDE primário                                                    │
+;   ├───────┼─────────────────────────────────────────────────────────────────┤
+;   │ IRQ15 │ IDE secundário                                                  │
+;   └───────┴─────────────────────────────────────────────────────────────────┘
+;
+;
+; O diagrama abaixo representa como o PIC Mestre e o PIC Escravo estão conectados:
+;
+;
+;                                ┌────────────────────────┐
+;                IRQ0 ──────────►│ IR0         PIC MESTRE │
+;                IRQ1 ──────────►│ IR1                    │
+;                                │ IR2 ◄────┐             │
+;                IRQ3 ──────────►│ IR3      │             │
+;                IRQ4 ──────────►│ IR4      │             │
+;                IRQ5 ──────────►│ IR5      │             │
+;                IRQ6 ──────────►│ IR6      │             │
+;                IRQ7 ──────────►│ IR7      │             │
+;                                └──────────│─────────────┘
+;                                           │          
+;                                           │ CASCADE  
+;                                           │         
+;                                ┌──────────┴─────────────┐
+;                IRQ8  ─────────►│ IR0        PIC ESCRAVO │
+;                IRQ9  ─────────►│ IR1                    │
+;                IRQ10 ─────────►│ IR2                    │
+;                IRQ11 ─────────►│ IR3                    │
+;                IRQ12 ─────────►│ IR4                    │
+;                IRQ13 ─────────►│ IR5                    │
+;                IRQ14 ─────────►│ IR6                    │
+;                IRQ15 ─────────►│ IR7                    │
+;                                └────────────────────────┘
+;
+;
+; Optei por utilizar o PIC 8259 e não o moderno APIC (Advanced Programmable 
+; Interrupt Controller) como gerenciador de interrupções por questão de simplicidade
+; do código. Como os computadores modernos mantém compatibilidade retroativa, 
+; então vai funcionar no hardware destes também.
+;
+;
+; MAPEAMENTO DOS TRATADORES DE INTERRUPÇÕES (HANDLER) DE RELÓGIO E DE TECLADO
+;
+; 
+; Diferentemente da IVT que é preconfigurada pelo BIOS, no kernel é necessário
+; mapear explicitamente cada entrada da IDT, pois não há tratadores padrão de 
+; interrupção e de exceção. Neste código, na rotina init_idt, fazemos esta 
+; configuração para as interrupções que o kernel vai monitorar. 
+;
+; Basicamente, o código da rotina init_idt configura o gate 32 para apontar para
+; o handler irq0_handler e o gate 33 para apontar para o handler irq1_handler, 
+; para tratar as interrupções de relógio e de teclado, respectivamente. A 
+; interrupção de IRQ0 é gerada pelo PIT (Programmable Interval Timer). Neste 
+; código eu substituo o PIT pelo HPET, por questão de precisão, já que estou 
+; implementando um relógio digital.
+;
+; As demais entradas estarão setadas com todos os bits em 0x0. Mais uma vez,
+; não atribuirei tratadores de exceções às entradas 0x00 a 0x1F por simplificação
+; do código. Num sistema operacional, cada entrada deve ter definido seu handler
+; para caso ocorra uma exceção, esta tenha um tratamento adequado e a máquina 
+; não entre em "crash".
 ;
 ; =============================================================================
+
 
 idt_table:
 

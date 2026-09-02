@@ -76,3 +76,5 @@ https://wiki.osdev.org/HPET#HPET_registers
 https://cdrdv2.intel.com/v1/dl/getContent/671200
 
 https://wiki.osdev.org/MTRR
+
+https://wiki.osdev.org/index.php?title=Interrupt_Descriptor_Table&utm_source=chatgpt.com
