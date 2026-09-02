@@ -932,7 +932,7 @@ set_gate_33:
 								  ;
                                   ; > P = 1 (presente).
 								  ;
-								  ; > DPL = 0 (nível 0).
+								  ; > DPL = 00 (nível 0).
 								  ;
                                   ; > Tipo = 1110 (Interrupt Gate 32-bit).    
 								  
@@ -2925,13 +2925,13 @@ tsc_inv_fallback:
 ; IDT (INTERRUPT DESCRIPTION TABLE)
 ;
 ;
-; A  IDT (Interrupt Descriptor Table) é uma tabela usada pelo processador para 
-; descobrir para onde transferir a execução quando ocorre uma exceção ou interrupção.
-; Em modo protegido, de 32 bits, ela têm até 256 entradas, numeradas de 0 a 255, 
-; cada entrada ocupando 8 bytes.
+; A IDT é uma tabela usada pelo processador para descobrir para onde transferir 
+; a execução quando ocorre uma exceção ou interrupção. Em modo protegido, de 32 
+; bits, ela têm até 256 entradas, numeradas de 0 a 255, cada entrada ocupando 8 
+; bytes.
 ;
-; Para encontrar a IDT o processador usa o registrador IDTR, que contém os seguintes
-; campos:
+; Para encontrar a IDT o processador utiliza o registrador IDTR, que contém os 
+; seguintes campos:
 ;
 ;
 ;       47                                      16 15                    0
@@ -2947,8 +2947,8 @@ tsc_inv_fallback:
 ;
 ;     LIMIT = tamanho_da_IDT_em_bytes - 1
 ;
-;   Por exemplo, a IDT abaixo tem 256 entradas, com cada entrada ocupando 8 bytes,
-;   então:
+;   Por exemplo, a IDT deste projeto tem 256 entradas, com cada entrada ocupando
+;   8 bytes, então:
 ;
 ;     LIMIT = (256 × 8 = 2048) - 1 ⇒ 2047 ⇒ 0x07FF
 ;
@@ -2995,15 +2995,15 @@ tsc_inv_fallback:
 ; e os à direita o offset da entrada na tabela.
 ;
 ;
-; ENTRADAS DA IDT
+; ENTRADA DA IDT
 ;
 ;
-; Em Modo Protegido, cada entrada da IDT tem 8 bytes (64 bts). Os 64 bits de uma
+; Em Modo Protegido, cada entrada da IDT tem 8 bytes (64 bits). Os 64 bits de uma
 ; entrada, que contém um interrupt gate que especifica o handler a ser executado, 
 ; compõem os seguintes campos:
 ;
 ;
-;     63                           48  46 44  43    39                32
+;     63                           47  46 44  43    39                32
 ;     ↓                              ↘  ↓ ↓  ↙      ↓                 ↓
 ;     ┌───────────────────────────────┬─┬─┬─┬───────┬─────────────────┐
 ;     │ Offset 31:16                  │P│D│S│ Type  │ Reserved        │
@@ -3011,6 +3011,7 @@ tsc_inv_fallback:
 ;     │                               │ │L│ │       │                 │
 ;     ├───────────────────────────────┼─┴─┴─┴───────┴─────────────────┤
 ;     │ Selector                      │ Offset 15:00                  │
+;     │                               │                               │
 ;     │                               │                               │
 ;     └───────────────────────────────┴───────────────────────────────┘
 ;     ↑                               ↑                               ↑
@@ -3094,9 +3095,9 @@ tsc_inv_fallback:
 ;
 ;     > 3 → Menor nível de privilégio (ring 3).
 ;
-;   Para uma instrução INT n, o processador compara o CPL do código que executa
-;   o INT com o DPL do gate. Para ivocação, o CPL precisa ser menor ou igual ao
-;   DPL:
+;   Para uma instrução INT n, o processador compara o CPL (Current Privilege
+;   Level) do código que executa o INT com o DPL do gate. Para ivocação, o CPL 
+;   precisa ser menor ou igual ao DPL ao acessar um Interrupt/Trap gate:
 ;
 ;     CPL ≤ DPL
 ;
@@ -3109,6 +3110,45 @@ tsc_inv_fallback:
 ;     > DPL = 2 → CPL 0, 1 ou 2 pode executar INT n.
 ;
 ;     > DPL = 3 → CPL 0, 1, 2 ou 3 pode executar INT n.
+;
+;   CPL indica em qual nível de privilégio (ring) o código que está executando
+;   atualmente está rodando.
+;
+;   Por exemplo, imagine que o processador esteja executando código de usuário:
+;
+;     CPL = 3
+;
+;   Esse código está no Ring 3.
+;
+;   Se ele executar:
+;
+;     int 80h
+;
+;   o processador vai consultar a entrada 80h da IDT e verificar o DPL do 
+;   Interrupt/Trap gate naquela entrada.
+;
+;   Se:
+;
+;     DPL = 3
+;     CPL = 3
+;
+;   então:
+;
+;     CPL ≤ DPL
+;     3 ≤ 3 → OK
+;
+;   A chamada é permitida.
+;
+;   Se o gate tiver:
+;
+;     DPL = 0
+;     CPL = 3
+;
+;   temos:
+;
+;     3 ≤ 0 → NÃO
+;
+;   e a instrução INT 80h não pode ser usada diretamente por código Ring 3.
 ;
 ;
 ; ● P (Present)
@@ -3238,7 +3278,7 @@ tsc_inv_fallback:
 ;
 ;                     IDT
 ;            │                    │
-;            │────────────────────│ ┼
+;            │────────────────────│ ┬
 ;            │                    │ │
 ;            │  Entradas 40 a 47  │ │ PIC Escravo (IRQs 8 a 15)
 ;            │                    │ │ 
@@ -3356,10 +3396,10 @@ tsc_inv_fallback:
 ; MAPEAMENTO DOS TRATADORES DE INTERRUPÇÕES (HANDLER) DE RELÓGIO E DE TECLADO
 ;
 ; 
-; Diferentemente da IVT que é preconfigurada pelo BIOS, no kernel é necessário
-; mapear explicitamente cada entrada da IDT, pois não há tratadores padrão de 
-; interrupção e de exceção. Neste código, na rotina init_idt, fazemos esta 
-; configuração para as interrupções que o kernel vai monitorar. 
+; Diferentemente da IVT que é preconfigurada pelo BIOS no Modo Real, no Modo
+; Protegido é necessário mapear explicitamente cada entrada da IDT, pois não há
+; tratadores padrão de interrupção e de exceção. Neste código, na rotina init_idt, 
+; fazemos esta configuração para as interrupções que o kernel vai monitorar. 
 ;
 ; Basicamente, o código da rotina init_idt configura o gate 32 para apontar para
 ; o handler irq0_handler e o gate 33 para apontar para o handler irq1_handler, 
@@ -3377,17 +3417,17 @@ tsc_inv_fallback:
 ; =============================================================================
 
 
-idt_table:
+idt_table:                        ; Primeiro byte da IDT (offset 0x00).
 
-    times 256 dq 0  
+    times 256 dq 0                ; Preenche todas as 256 entradas com 0x00.  
 
-idt_table_end:
+idt_table_end:                    ; Último byte da IDT (offset 0x7FF).
 
 
-idt_ptr:
+idt_ptr:                          ; Ponteiro para a IDT. Será usado pelo IDTR.
 
-    dw idt_table_end - idt_table - 1
-    dd idt_table
+    dw idt_table_end - idt_table - 1 ; Calcula o máximo offset da IDT (Limit).
+    dd idt_table                  ; Ponteiro para o offset no segmento (Base).
 
 
 
