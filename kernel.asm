@@ -73,23 +73,14 @@
 ;
 ;
 ; A assinatura constitui os primeiros 32 bytes do binário do kernel na imagem de
-; disco.
+; disco. Quando o kernel estiver carregado na memória, ela ocupará os endereços 
+; de 0x7E00 até 0x7E1F.
 ;
 ;
-; ┌───────────────────────────────────┬────────────────────────────────────────
-; │  Assinatura do Kernel (32 bytes)  │  Instruções e Dados (assembly)
-; └───────────────────────────────────┴────────────────────────────────────────
-; ├─────────────────────── Imagem do Kernel (5120 bytes) ──────────────────────
-;
-;
-; Quando o kernel estiver carregado na memória, ela ocupará os endereços de 0x7E00
-; até 0x7E1F.
-;
-;
-; ├────── Assinatura do Kernel ───────┤  0x7E20 (kernel_entry)
-; ┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─ ↩ ────────────────────────────────────
-; │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │  Memória do Kernel
-; └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴──────────────────────────────────────
+; ├────── Assinatura do Kernel ───────┤
+; ┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬────────────────────────────────────────
+; │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │  Instruções e Dados (assembly)
+; └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴────────────────────────────────────────
 ; ↪ 0x7E00                            ↪ 0x7E1F
 ;
 ; =============================================================================
@@ -746,7 +737,6 @@ fill_vga_buffer:
 ;
 ; através das portas 0x3D4 (índice) e 0x3D5 (dados).
 ;
-;
 ; Esses registradores controlam:
 ;
 ;
@@ -814,14 +804,31 @@ hide_cursor:
 ; INICIALIZAR A IDT
 ;
 ;
-; Configura os gates da tabela IDT. Serão mapeadas apenas 2 entradas neste kernel, 
-; ficando o restante das entradas sem tratadores definidos. 
+; Configura os gates da tabela IDT. Serão configurados apenas 4 gates neste kernel, 
+; ficando o restante das entradas sem tratadores definidos: 
 ;
 ;
-;   > Handler da interrupção de relógio (IRQ0), mapeado no gate 32.
+;   > Handler da interrupção de relógio (IRQ0) no gate 32.
+;
+;   > Handler da interrupção de teclado (IRQ1) no gate 33.
+;
+;   > Handler de interrupção espúria (IRQ7) no gate 39.
+;
+;   > Handler de interrupção espúria (IRQ15) no gate 47.
 ;
 ;
-;   > Handler da interrupção de teclado (IRQ1), mapeado no gate 33.
+; -----------------------------------------------------------------------------
+; Nota: Serão atribuídos tratadores de interrupções espúrias para as IRQs 7 e 15, 
+; pois se for gerada uma interrupção nestas IRQs, o processador vai para uma #GP 
+; (General Protection Fault) e consequentemente para Triple Fault, fazendo o 
+; computador reiniciar, pois este kernel não trata interrupções nas entradas 
+; reservadas (entradas 0 a 31). Os tratadores de interrupções espúrias apenas
+; retornam (iret) de forma consistente. 
+;
+; Isso seria desnecessário se o código rodasse apenas em emuladores, mas ele está 
+; projetado para rodar em hardware real, portanto, está sujeito a interrupções 
+; espúrias nestas IRQs.
+; -----------------------------------------------------------------------------
 ;
 ;
 ; Cada gate terá os seguintes bytes (veja detalhes de cada campo no comentário
@@ -834,7 +841,7 @@ hide_cursor:
 ;
 ;   2-3     0x08        Seletor de código da GDT (índice 1, <<3, TI=0, RPL=0).
 ;
-;   4       0x0         Byte reservado.
+;   4       0x00        Byte reservado.
 ;
 ;   5       0x8E        Atributos (P=1, DPL=00, S=0 Tipo=1110).
 ;
@@ -853,12 +860,12 @@ init_idt:
 								  ; exceção.				
 
 ; -----------------------------------------------------------------------------
-; Configura a entrada 32 (gate 32) da IDT para apontar para o handler do relógio 
-; (irq0_handler). Dessa forma, quando o HPET/PIT gerar a interrupção, o processador 
-; executará o código deste handler.
+; Configura o gate 32 para apontar para o handler do relógio irq0_handler. Dessa 
+; forma, quando o HPET gerar a interrupção, o processador executará o código deste 
+; handler.
 ; -----------------------------------------------------------------------------
 
-set_gate_32:
+.set_gate_32:
 
     mov eax, irq0_handler         ; Copia o endereço de memória da rotina de 
 	                              ; tratamento da interrupção de relógio em 
@@ -880,7 +887,7 @@ set_gate_32:
 	mov byte [edi + 4], 0         ; Define o byte reservado da entrada da IDT
                                   ; como zero, conforme exigido pela arquitetura.     
 	
-	mov byte [edi + 5], 0x8E      ; Define os atributos da entrada:
+	mov byte [edi + 5], 0x8E      ; Define os atributos do gate:
 	                              ;
 								  ; > S = 0.
 								  ;
@@ -900,19 +907,20 @@ set_gate_32:
                                   ; da IDT, completando o ponteiro de 32 bits.
 								  
 ; -----------------------------------------------------------------------------
-; Configura a entrada 33 (gate 33) da IDT para apontar para o handler do teclado 
-; (irq1_handler). Desta forma, toda vez que uma tecla for pressionada, executa
-; o código deste handler.
+; Configura o gate 33 da IDT para apontar para o handler do teclado irq1_handler. 
+; Desta forma, toda vez que uma tecla for pressionada, executa o código deste 
+; handler.
 ; -----------------------------------------------------------------------------
 
-set_gate_33:
+.set_gate_33:
 
     mov eax, irq1_handler         ; Copia o endereço de memória da rotina de 
 	                              ; tratamento da interrupção de teclado em 
 								  ; EAX.   
                                   
     mov edi, idt_table + (33 * 8) ; Copia o endereço de memória da entrada 33 na 
-	                              ; tabela IDT em EDI.
+	                              ; tabela IDT em EDI. Multipliquei por oito,
+								  ; pois cada entrada na IDT tem 8 bytes.
                                   
     mov word [edi + 0], ax        ; Grava os 16 bits menos significativos do
                                   ; endereço da rotina (offset baixo) na
@@ -926,7 +934,7 @@ set_gate_33:
     mov byte [edi + 4], 0         ; Define o byte reservado da entrada da IDT
                                   ; como zero, conforme exigido pela arquitetura.       
 								  
-    mov byte [edi + 5], 0x8E      ; Define os atributos da entrada:
+    mov byte [edi + 5], 0x8E      ; Define os atributos do gate:
 	                              ;
 								  ; > S = 0.
 								  ;
@@ -943,9 +951,101 @@ set_gate_33:
 								  
     mov word [edi + 6], ax        ; Grava os 16 bits mais significativos do
                                   ; endereço da rotina (offset alto) na entrada
-                                  ; da IDT, completando o ponteiro de 32 bits.     
+                                  ; da IDT, completando o ponteiro de 32 bits.
 
+; -----------------------------------------------------------------------------
+; Configura o gate 39 da IDT para apontar para o handler irq7_handler. Dessa 
+; forma, se ocorrer uma interrupção espúria na IRQ7, esta terá tratamento e não
+; fará o computador reiniciar. 
+; -----------------------------------------------------------------------------
 
+.set_gate_39:
+
+    mov eax, irq7_handler         ; Copia o endereço de memória da rotina de
+                                  ; tratamento da IRQ7 espúria para EAX.
+
+    mov edi, idt_table + (39 * 8) ; Copia o endereço de memória da entrada 39
+                                  ; na tabela IDT em EDI. Multipliquei por oito,
+                                  ; pois cada entrada na IDT tem 8 bytes.
+
+    mov word [edi + 0], ax        ; Grava os 16 bits menos significativos do
+                                  ; endereço da rotina (offset baixo) na
+                                  ; entrada da IDT.
+
+    mov word [edi + 2], 0x08      ; Define o Seletor de Segmento na entrada 39
+                                  ; da IDT. O valor 0x08 aponta para o segmento
+                                  ; de código na GDT (índice 1, deslocado 3 bits,
+                                  ; sem bits de TI ou RPL).
+
+    mov byte [edi + 4], 0         ; Define o byte reservado da entrada da IDT
+                                  ; como zero, conforme exigido pela arquitetura.
+
+    mov byte [edi + 5], 0x8E      ; Define os atributos do gate:
+                                  ;
+                                  ; > S = 0.
+                                  ;
+                                  ; > P = 1 (presente).
+                                  ;
+                                  ; > DPL = 00 (nível 0).
+                                  ;
+                                  ; > Tipo = 1110 (Interrupt Gate 32-bit).
+
+    shr eax, 16                   ; Desloca o endereço da rotina em EAX para a
+                                  ; direita, para pegar os 16 bits superiores
+                                  ; do endereço em AX. Agora AX contém os 16 bits
+                                  ; altos do endereço.
+
+    mov word [edi + 6], ax        ; Grava os 16 bits mais significativos do
+                                  ; endereço da rotina (offset alto) na entrada
+                                  ; da IDT, completando o ponteiro de 32 bits.
+
+; -----------------------------------------------------------------------------
+; Configura o gate 47 da IDT para apontar para o handler irq15_handler. Dessa 
+; forma, se ocorrer uma interrupção espúria na IRQ15, esta terá tratamento e não
+; fará o computador reiniciar. 
+; -----------------------------------------------------------------------------
+
+.set_gate_47:
+
+    mov eax, irq15_handler        ; Copia o endereço de memória da rotina de
+                                  ; tratamento da IRQ15 espúria para EAX.
+
+    mov edi, idt_table + (47 * 8) ; Copia o endereço de memória da entrada 47
+                                  ; na tabela IDT em EDI. Multipliquei por oito,
+                                  ; pois cada entrada na IDT tem 8 bytes.
+
+    mov word [edi + 0], ax        ; Grava os 16 bits menos significativos do
+                                  ; endereço da rotina (offset baixo) na
+                                  ; entrada da IDT.
+
+    mov word [edi + 2], 0x08      ; Define o Seletor de Segmento na entrada 47
+                                  ; da IDT. O valor 0x08 aponta para o segmento
+                                  ; de código na GDT (índice 1, deslocado 3 bits,
+                                  ; sem bits de TI ou RPL).
+
+    mov byte [edi + 4], 0         ; Define o byte reservado da entrada da IDT
+                                  ; como zero, conforme exigido pela arquitetura.
+
+    mov byte [edi + 5], 0x8E      ; Define os atributos do gate:
+                                  ;
+                                  ; > S = 0.
+                                  ;
+                                  ; > P = 1 (presente).
+                                  ;
+                                  ; > DPL = 00 (nível 0).
+                                  ;
+                                  ; > Tipo = 1110 (Interrupt Gate 32-bit).
+
+    shr eax, 16                   ; Desloca o endereço da rotina em EAX para a
+                                  ; direita, para pegar os 16 bits superiores
+                                  ; do endereço em AX. Agora AX contém os 16 bits
+                                  ; altos do endereço.
+
+    mov word [edi + 6], ax        ; Grava os 16 bits mais significativos do
+                                  ; endereço da rotina (offset alto) na entrada
+                                  ; da IDT, completando o ponteiro de 32 bits.
+
+								  
 
 
 ; =============================================================================
@@ -954,58 +1054,46 @@ set_gate_33:
 ;
 ;
 ; Faz o remapeamento do PIC (Programmable Interrupt Controller). Por padrão, o 
-; BIOS configura o PIC para que as IRQs usem as entradas de 0x08 a 0x0F (PIC 
-; Mestre) e de 0x70 a 0x77 (PIC Escravo) da IVT. Mas em Modo Protegido não usa a
-; IVT, e a Intel reservou as entradas de 0 a 31 da IDT para tratamento de exceções
-; da CPU (como Divisão por Zero ou Falha de Página).
+; BIOS configura o PIC para que as IRQs usem os vetores de 0x08 a 0x0F (PIC Mestre) 
+; e de 0x70 a 0x77 (PIC Escravo) da IVT. Mas em Modo Protegido o processador não 
+; usa a IVT e sim a IDT para localizar as rotinas de tratamento de interrupções 
+; e de exceções, e a Intel reservou as entradas de 0 a 31 da IDT para tratamento 
+; de exceções da CPU (como Divisão por Zero ou Falha de Página).
 ;
-; Se não remapearmos as IRQs no Modo Protegido, quando o HPET disparar o relógio
-; (IRQ0) ao habilitarmos de novo as interrupções mascaráveis, a CPU vai achar que
-; ocorreu uma "Double Fault", pois o PIC estará usando os vetores gravados pelo 
-; BIOs para a IVT, e como vai ter apenas 0x0 na entrada 0x08 da IDT, o processador 
-; entra em Triple Fault e reinicia o computador. O mesmo ocorre se houver uma
-; interrupção de teclado. Por isso remapearemos as IRQs para começarem a partir
-; da entrada 32 (gate 32) da IDT, pois como vimos, entradas de 0 a 31 são utilizadas
-; pela Intel para tratamento de exceções do processador.
+; Se não remapearmos, quando o HPET disparar o relógio (IRQ0) ao habilitarmos de
+; novo as interrupções mascaráveis, a CPU vai achar que ocorreu uma "Double Fault", 
+; pois o PIC estará usando os vetores gravados pelo BIOs para a IVT, e como vai
+; ter apenas 0x0 na entrada 0x08 da IDT, o processador entra em Triple Fault e 
+; reinicia o computador. O mesmo ocorre se houver uma interrupção de teclado. Por
+; isso remapearemos as IRQs para começarem a partir da entrada 32 (gate 32) da IDT, 
+; pois como vimos, entradas de 0 a 31 são utilizadas pela Intel para tratamento
+; de exceções do processador, e vamos mantê-las sem tratadores neste kernel.
 ;
 ; O PIC é configurado através de ICWs (Initialization Command Words). Serão 4 os
 ; comandos enviados em sequência para as portas de I/O do PIC (Mestre e Escravo):
 ;
 ;
-; > ICW1: Envia o bitmask 0x11 para ambos os PICs (Mestre e Escravo). Isso diz a
+; ● ICW1: Envia o bitmask 0x11 para ambos os PICs (Mestre e Escravo). Isso diz a
 ;   eles para esperar mais 3 palavras de controle (ICW2, ICW3 e ICW4) e que estará
 ;   operando em modo cascata (SNGL = 0).
 ;
 ;
-; > ICW2: Resolve o conflito com a Intel (faz o remapeamento das IRQs para a entrada
+; ● ICW2: Resolve o conflito com a Intel (faz o remapeamento das IRQs para a entrada
 ;   32 e adiante da IDT).
 ;
 ;
-; > ICW3: O PIC Escravo está conectado fisicamente a um pino do Mestre. Este comando
+; ● ICW3: O PIC Escravo está conectado fisicamente a um pino do Mestre. Este comando
 ;   sincroniza os dois chips para trabalharem juntos, em cascata.
 ;
 ;
-; > ICW4: Define o modo de ambiente para x86.
-;
-;
-; Nota:
-;
-; Por ser um kernel sem nenhuma função prática, não vou criar tratadores para
-; interrupções espúrias (Spurious Interrupts). Como o teste será em máquinas 
-; virtuais, não há a preocupação de tratar estas questões de ruídos no hardware.
-; As interrupções espúrias aparecerão nos vetores 39 (PIC Mestre) e 47 (PIC 
-; Escravo), conforme o remapeamento, devido a ruído elétrico ou timing. Num
-; sistema prático, deveria-se associar uma rotina de tratamento destas interrupções,
-; mesmo que elas contivessem apenas uma instrução ret (retornar).
+; ● ICW4: Define o modo de ambiente para x86.
 ;
 ; =============================================================================
 
 
 remap_pic:				
 				
-; -----------------------------------------------------------------------------
-; Comando ICW1:
-; -----------------------------------------------------------------------------
+.ICW1:                            ; COMANDO ICW1:
 
     mov al, 0x11                  ; Carrega o valor 0x11 (binário 00010001) em
                                   ; AL. Este bitmask indica para o PIC esperar 
@@ -1018,9 +1106,7 @@ remap_pic:
     out 0xA0, al                  ; Envia o comando de configuração para a porta 
 	                              ; de comando do PIC Escravo (porta 0xA0).
 								  
-; -----------------------------------------------------------------------------
-; Comando ICW2:
-; -----------------------------------------------------------------------------	
+.ICW2:                            ; COMANDO ICW2:
 							  
     mov al, 0x20                  ; Define o endereço base como 32 (0x20), gravando
 	                              ; o valor em AL.
@@ -1040,10 +1126,8 @@ remap_pic:
 								  ; as IRQs 8 a 15. Elas dispararão as interrupções 
 								  ; 40 a 47 na IDT.
 
-; -----------------------------------------------------------------------------
-; Comando ICW3:
-; -----------------------------------------------------------------------------
-								  
+.ICW3:                            ; COMANDO ICW3:
+		
     mov al, 0x04                  ; Grava o valor 0x04 em AL. O valor 0x04 em 
 	                              ; binário é 00000100. Ele indica que o bit 2
 								  ; está ligado. Bit 2 ligado indica que o PIC 
@@ -1063,11 +1147,9 @@ remap_pic:
 	                              ; PIC Escravo. Isso diz ao Escravo que sua 
 								  ; saída está ligada especificamente à linha 
 								  ; física IRQ 2 do PIC Mestre.
-
-; -----------------------------------------------------------------------------
-; Comando ICW4:
-; -----------------------------------------------------------------------------
-						  
+	
+.ICW4:                            ; COMANDO ICW4:
+		
     mov al, 0x01                  ; Grava o valor 0x01 em AL. Este valor define
 	                              ; o modo 8086/88 (x86) (este modo é compatível
 								  ; com todas as CPUS modernas). Não vou usar
@@ -1105,91 +1187,92 @@ remap_pic:
 ; O HPET possui um conjunto de registradores de 64 bits. Os principais deles são:
 ;
 ;
-; GCAP_ID (General Capabilities and ID Register): Offsets: 0x000 (Low) e 0x004
-; (High). Registrador apenas leitura. Indica a versão, o número de comparadores
-; (timers) disponíveis e o período do clock principal (Main Counter).
+; ● GCAP_ID (General Capabilities and ID Register): Offsets: 0x000 (Low) e 0x004
+;   (High). Registrador apenas leitura. Indica a versão, o número de comparadores
+;   (timers) disponíveis e o período do clock principal (Main Counter).
 ; 
-;   > Bits 0-7 (REV_ID): Versão do hardware HPET.
+;     > Bits 0-7 (REV_ID): Versão do hardware HPET.
 ;
-;   > Bits 8-12 (NUM_TIM_CAP): Quantidade de comparadores (timers) disponíveis. 
-;     O HPET possui de 3 a 32 timers (também chamados de canais), dependendo da
-;     implementação do chipset (Intel, AMD, etc.)
+;     > Bits 8-12 (NUM_TIM_CAP): Quantidade de comparadores (timers) disponíveis. 
+;       O HPET possui de 3 a 32 timers (também chamados de canais), dependendo da
+;       implementação do chipset (Intel, AMD, etc.)
 ; 
-;   > Bit 13 (COUNT_SIZE_CAP): Se este bit é 1, o Main Counter é de 64 bits, se 
-;     0, é de 32 bits.
+;     > Bit 13 (COUNT_SIZE_CAP): Se este bit é 1, o Main Counter é de 64 bits, se 
+;       0, é de 32 bits.
 ;
-;   > Bit 14 (Reserved): Reservado para uso futuro.
+;     > Bit 14 (Reserved): Reservado para uso futuro.
 ; 
-;   > Bit 15 (LEG_RT_CAP): Se este bit é 1, o HPET suporta o "Legacy Replacement
-;     Route" (substituir o PIT e RTC), se 0, não suporta.
+;     > Bit 15 (LEG_RT_CAP): Se este bit é 1, o HPET suporta o "Legacy Replacement
+;       Route" (substituir o PIT e RTC), se 0, não suporta.
 ; 
-;   > Bits 16-31 (VENDOR_ID): Identificação do fabricante.
+;     > Bits 16-31 (VENDOR_ID): Identificação do fabricante.
 ;
-;   > Bits 32-63 (Offset 0x004 - COUNTER_CLK_PERIOD): Indica o período de um "tick"
-;     do HPET em fentosegundos (10^-15s).
+;     > Bits 32-63 (Offset 0x004 - COUNTER_CLK_PERIOD): Indica o período de um 
+;       "tick" do HPET em fentosegundos (10^-15s).
 ;
 ;
-; GEN_CONF (General Configuration): Offset: 0x010. Permite habilitar o contador 
-; principal e configurar o modo de interrupção (Legacy Replacement).
+; ● GEN_CONF (General Configuration): Offset: 0x010. Permite habilitar o contador 
+;   principal e configurar o modo de interrupção (Legacy Replacement).
 ; 
-;   > Bit 0 (ENABLE_CNF): Se este bit é 0, o Main Counter para e não incrementa,
-;     se 1, o Main Counter começa a contar.
+;     > Bit 0 (ENABLE_CNF): Se este bit é 0, o Main Counter para e não incrementa,
+;       se 1, o Main Counter começa a contar.
 ;
-;   > Bit 1 (LEG_RT_CNF): Se este bit é 0, usa Interrupções normais via APIC, se
-;     é 1, ativa o "Legacy Replacement Route". Ativando este modo, o Timer 0 assume
-;     a IRQ 0 (PIT) e o Timer 1 assume a IRQ 8 (RTC).
+;     > Bit 1 (LEG_RT_CNF): Se este bit é 0, usa Interrupções normais via APIC,
+;       se é 1, ativa o "Legacy Replacement Route". Ativando este modo, o Timer 
+;       0 assume a IRQ 0 (PIT) e o Timer 1 assume a IRQ 8 (RTC).
 ;
-;   > Bits 2-63: Bits reservados.
-;
-;
-; MAIN_CNT (Main Counter Value): Offset: 0x0F0 (Low) e 0x0F4 (High). Contador de
-; 64 bits que incrementa continuamente.
-;
-;   > Bits 0-63: É um contador crescente.
+;     > Bits 2-63: Bits reservados.
 ;
 ;
-; T0_CONFIG_CAP (Timer 0 Configuration and Capabilities): Offset: 0x100. Configura
-; o comportamento do Timer 0.
+; ● MAIN_CNT (Main Counter Value): Offset: 0x0F0 (Low) e 0x0F4 (High). Contador
+;   de 64 bits que incrementa continuamente.
 ;
-;   > Bit 1 (TN_INT_TYPE_CNF): 0 para interrupção por borda (Edge), 1 para nível 
-;     (Level).
-;
-;   > Bit 2 (TN_INT_ENB_CNF): Se este bit é 1, habilita a geração de interrupções
-;     para este timer.
-;
-;   > Bit 3 (TN_TYPE_CNF): Se este bit é 1, define modo periódico. Neste modo o
-;     timer recarrega automaticamente. Se for 0, define o modo One-shot.
-;
-;   > Bit 4 (TN_PER_INT_CAP) (Read Only): Indica se este timer suporta modo
-;     periódico.
-;
-;   > Bit 5 (TN_SIZE_CAP)(Read Only): Se este bit é 1, o comparador é de 64 bits.
-;
-;   > Bit 6 (TN_VAL_SET_CNF): Se este bit é 1, permite escrever diretamente no
-;     acumulador do comparador para sincronização.
-;
-;   > Bit 8 (TN_32MODE_CNF): Força o timer a operar em 32 bits mesmo se for 64.
-;
-;   > Bits 9-13 (TN_INT_ROUTE_CNF): Seleciona para qual IRQ do I/O APIC a
-;     interrupção será enviada.
-;
-;   > Bit 14 (TN_FSB_EN_CNF): Habilita entrega via FSB (MSI) em vez de pinos de
-;     IRQ.
-;
-;   > Bit 15 (TN_FSB_INT_DEL_CAP)(Read Only): Indica se suporta MSI.
-;
-;   > Bits 16-31 (TN_INT_ROUTE_CAP): Campo de apenas leitura. Ele é um "mapa de 
-;     bits" que indica para quais IRQs do I/O APIC este timer específico pode 
-;     ser roteado.
-;
-;   > Bits 32-63: Bits reservados.
+;     > Bits 0-63: É um contador crescente.
 ;
 ;
-; T0_COMPARATOR (Timer 0 Comparator Value): Offset: 0x108 (Low) e 0x10C (High).
+; ● T0_CONFIG_CAP (Timer 0 Configuration and Capabilities): Offset: 0x100. Configura
+;   o comportamento do Timer 0.
+;
+;     > Bit 1 (TN_INT_TYPE_CNF): 0 para interrupção por borda (Edge), 1 para nível 
+;       (Level).
+;
+;     > Bit 2 (TN_INT_ENB_CNF): Se este bit é 1, habilita a geração de interrupções
+;       para este timer.
+;
+;     > Bit 3 (TN_TYPE_CNF): Se este bit é 1, define modo periódico. Neste modo
+;       o timer recarrega automaticamente. Se for 0, define o modo One-shot.
+;
+;     > Bit 4 (TN_PER_INT_CAP) (Read Only): Indica se este timer suporta modo
+;       periódico.
+;
+;     > Bit 5 (TN_SIZE_CAP)(Read Only): Se este bit é 1, o comparador é de 64 
+;       bits.
+;
+;     > Bit 6 (TN_VAL_SET_CNF): Se este bit é 1, permite escrever diretamente no
+;       acumulador do comparador para sincronização.
+;
+;     > Bit 8 (TN_32MODE_CNF): Força o timer a operar em 32 bits mesmo se for 64.
+;
+;     > Bits 9-13 (TN_INT_ROUTE_CNF): Seleciona para qual IRQ do I/O APIC a
+;       interrupção será enviada.
+;
+;     > Bit 14 (TN_FSB_EN_CNF): Habilita entrega via FSB (MSI) em vez de pinos
+;       de IRQ.
+;
+;     > Bit 15 (TN_FSB_INT_DEL_CAP)(Read Only): Indica se suporta MSI.
+;
+;     > Bits 16-31 (TN_INT_ROUTE_CAP): Campo de apenas leitura. Ele é um "mapa
+;       de bits" que indica para quais IRQs do I/O APIC este timer específico pode 
+;       ser roteado.
+;
+;     > Bits 32-63: Bits reservados.
+;
+;
+; ● T0_COMPARATOR (Timer 0 Comparator Value): Offset: 0x108 (Low) e 0x10C (High).
 ; 
-;   > Bits 0-63: Contém o valor de "alvo". Quando MAIN_CNT igualar a este valor,
-;     o Timer0 dispara a interrupção (e no modo periódico, ele adiciona este
-;     intervalo ao valor atual para o próximo disparo).
+;     > Bits 0-63: Contém o valor de "alvo". Quando MAIN_CNT igualar a este valor,
+;       o Timer0 dispara a interrupção (e no modo periódico, ele adiciona este
+;       intervalo ao valor atual para o próximo disparo).
 ;
 ; =============================================================================
 	
@@ -1205,6 +1288,8 @@ setup_hpet:
 ; -----------------------------------------------------------------------------
 ; Testa se o HPET está mapeado e respondendo corretamente.
 ; -----------------------------------------------------------------------------
+
+.test_hpet:
 
     mov eax, [esi + 0x00]         ; Lê o registrador General Capabilities and ID
 	                              ; e coloca o valor em EAX. 
@@ -1286,6 +1371,12 @@ setup_hpet:
 
 .hpet_ok:
 
+; ----------------------------------------------------------------------------
+; Configura o HPET para disparar a interrupção de relógio (IRQ0) a cada 10 ms.
+; ----------------------------------------------------------------------------
+
+.set_ticks_10ms:
+
 ; -----------------------------------------------------------------------------
 ; Desativa o contador principal para a configuração do Timer0 do HPET, que gerará
 ; a interrupção de relógio para o kernel (IRQ0).
@@ -1340,10 +1431,10 @@ setup_hpet:
 								  
     test ebx, ebx                 ; Verifica se o período lido é válido (não zero).
 	
-    jz .hpet_error                ; Se EBX for zero, o hardware falhou ou é incompatível.
-                                  ; Neste caso, pula para a rotina de tratamento
-								  ; de erro. Caso contrário, passa para a próxima
-								  ; linha.
+    jz .hpet_error                ; Se EBX for zero, o hardware falhou ou é 
+	                              ; incompatível. Neste caso, pula para a rotina 
+								  ; de tratamento de erro. Caso contrário, passa
+								  ; para a próxima linha.
 								  
     div ebx                       ; Divide o valor de 64 bits em EDX:EAX (10ms) 
 	                              ; pelo período em EBX. O quociente da divisão 
@@ -1465,6 +1556,8 @@ setup_hpet:
 
 setup_tsc:
 
+.test_tsc:
+
     mov eax, 1
     cpuid
     bt edx, 4
@@ -1482,7 +1575,7 @@ setup_tsc:
 
 .not_invariant:
 	
-	jmp .done
+	;jmp .done
 
     call tsc_inv_fallback
 
@@ -1499,6 +1592,8 @@ setup_tsc:
 ; -----------------------------------------------------------------------------
 ; Calibra o TSC usando o HPET.								  
 ; -----------------------------------------------------------------------------
+
+.calibrate_tsc:
 
 	push esi                      ; Guarda o valor de ESI na pilha do kernel.
 
@@ -1569,6 +1664,9 @@ setup_tsc:
 
 ; =============================================================================
 ;
+; HABILITAR INTERRUPÇÕES MASCARÁVEIS
+;
+;
 ; Habilita as interrupções mascaráveis novamente para que o kernel possa processar
 ; as interrupções de relógio geradas pelo HPET e interrupções do teclado. No 
 ; bootloader o programa tinha desabilitado estas interrupções.
@@ -1592,7 +1690,7 @@ enable_interrupts:
 								  ; habilitando-as. As demais IRQs não ficarão
 								  ; habilitadas.
 								  
-    out 0x21, al                  ; Escreve a nova máscara de volta no PIC.
+    out 0x21, al                  ; Escreve a nova máscara de volta no PIC Mestre.
 	
 	call rtc_read_datetime        ; Chama a função que lê a data e a hora no RTC.
 	
@@ -1601,17 +1699,23 @@ enable_interrupts:
 
 ; =============================================================================
 ;
+; LOOP PRINCIPAL
+;
+;
 ; Loop principal do kernel, que controla a impressão da data e hora do sistema
-; atualizadas a cada 1 segundo. Ao ser "acordado" por uma interrupção, a rotina
-; verifica o valor em second_flag:
+; atualizadas a cada 1 segundo. Ao ser "acordado" por uma interrupção de relógio, 
+; a rotina verifica o valor em second_flag:
 ; 
+;
 ; > Se second_flag = 0, indica que a interrupção que acordou a CPU não foi a da 
 ;   "virada de segundo". Com isso, volta a executar a instrução hlt, para voltar
 ;   a "dormir", esperando pela próxima interrupção de relógio (IRQ0).
 ;
+;
 ; > Se second_flag = 1, indica que um segundo completo se passou. Neste caso,
 ;   faz o reset de second_flag, imprime a hora atualizada na tela e volta a 
 ;   "dormir", esperando pela próxima interrupção de relógio.
+;
 ;
 ; O valor de second_flag é alterado para 1 em irq0_handler quando 1 segundo 
 ; completo de ciclos de CPU transcorreu (obtidos pela leitura do TSC).
@@ -1710,40 +1814,28 @@ irq0_handler:
 
     pushad
 
-    ; -----------------------------
-    ; 1. Lê TSC atual
-    ; -----------------------------
     cpuid
     rdtsc
 
-    ; Salva TSC atual em registradores temporários
-    mov ebx, eax            ; low
-    mov esi, edx            ; high
+    mov ebx, eax            ; parte baixa
+    mov esi, edx            ; parte alta
 
-    ; Calcula delta desde a última interrupção
     mov eax, ebx
     sub eax, [last_tsc_low]
     mov edx, esi
     sbb edx, [last_tsc_high]
 
-    ; Atualiza último TSC com o valor atual (não o delta!)
     mov [last_tsc_low], ebx
     mov [last_tsc_high], esi
 
-    ; -----------------------------
-    ; 2. Acumula delta
-    ; -----------------------------
     add dword [tsc_accumulator_low], eax
     adc dword [tsc_accumulator_high], edx
 
-    ; -----------------------------
-    ; 3. Converte tempo acumulado em múltiplos de 10ms
-    ; -----------------------------
     mov eax, [tsc_per_10ms_low]
     mov edx, [tsc_per_10ms_high]
 
 .check_10ms:
-    ; Compara acumulador com tsc_per_10ms
+
     cmp [tsc_accumulator_high], edx
     ja .process_tick
     jb .eoi
@@ -1751,14 +1843,12 @@ irq0_handler:
     jb .eoi
 
 .process_tick:
-    ; Subtrai 10ms de ciclos do acumulador
+
     sub dword [tsc_accumulator_low], eax
     sbb dword [tsc_accumulator_high], edx
 
-    ; Incrementa contador de ms
     inc byte [ms_counter]
 
-    ; Se 100 * 10ms passaram, incrementa segundo
     cmp byte [ms_counter], 100
     jb .check_10ms
 
@@ -1766,11 +1856,10 @@ irq0_handler:
     mov byte [second_flag], 1
     call update_date_time_buffer
 
-    ; Continua verificando se ainda há mais ticks acumulados
     jmp .check_10ms
 
 .eoi:
-    ; End of Interrupt
+
     mov al, 0x20
     out 0x20, al
 
@@ -1782,14 +1871,19 @@ irq0_handler:
 
 ; =============================================================================
 ;
+; ATUALIZAR BUFFER DE DATA E HORA
+;
+;
 ; Atualiza a hora e a data na memória do computador. Aqui que as "engrenagens"
 ; do "relógio" serão movimentadas. A cada 1 segundo será executada esta rotina.
 ; Inicialmente a hora e a data são lidas do RTC durante o boot e carregadas na
-; memória. Depois esta data e hora vão sendo atualizadas a cada segundo. Como não 
-; é feita a leitura do RTC novamente, e temos o TSC calculando o tempo de um 
-; segundo de modo preciso, serão feitos os seguintes cálculos nesta rotina, com
-; base na data atualizada na memória no segundo anterior:
+; memória. Depois esta data e hora vão sendo atualizadas a cada segundo na memória. 
+;
+; Como não é feita a leitura do RTC novamente, e temos o TSC calculando o tempo
+; de um segundo de modo preciso, serão feitos os seguintes cálculos nesta rotina,
+; com base na data na memória:
 ; 
+;
 ;   > Inclementa os segundos. Caso chegue a 60 segundos...
 ; 
 ;   > Zera os segundos e inclementa os minutos. Caso chegue a 60 minutos...
@@ -1802,10 +1896,11 @@ irq0_handler:
 ;   > Faz o reset do dia para 1 e inclementa o mês. Caso o mês ultrapasse 12
 ;     (dezembro)...
 ;
-;   > Faz o reset do mês para 1 (janeiro) e inclementa o ano . Se o ano chegar a
+;   > Faz o reset do mês para 1 (janeiro) e inclementa o ano. Se o ano chegar a
 ;     100...
 ;
 ;   > Faz o reset do ano para 0 e inclementa o século.
+;
 ;
 ; Nota:
 ;
@@ -1814,13 +1909,15 @@ irq0_handler:
 ;
 ; O cálculo para ano bissexto leva em consideração a regra:
 ;
-;   > Se o ano é divisível por 4 ->
 ;
-;     > Se não é divisível por 100 -> É ano bissexto.
+;   > Se o ano é divisível por 4:
 ;
-;     > Se é divisível por 100, mas não por 400 -> NÃO é ano bissexto.
+;     > Se não é divisível por 100 → É ano bissexto.
 ;
-;     > Se é divisível por 100 e também por 400 -> É ano bissexto.
+;     > Se é divisível por 100, mas não por 400 → NÃO é ano bissexto.
+;
+;     > Se é divisível por 100 e também por 400 → É ano bissexto.
+;
 ;
 ; Resumindo:
 ;
@@ -2000,15 +2097,91 @@ irq1_handler:
 	
 	
 	
+
+irq7_handler:
+
+    push dword 39
+    jmp spurious_handler
+
+
+
+
+irq15_handler:
+
+    push dword 47
+    jmp spurious_handler
+
+
+
+
+spurious_handler:
+
+    cmp dword [esp], 39
+    je .check_master
+
+    mov al, 0Bh
+    out 0A0h, al
+
+    in al, 0A0h
+
+    test al, 80h
+    jz .spurious_slave
+
+    mov al, 20h
+    out 0A0h, al         
+
+    mov al, 20h
+    out 020h, al 
+
+    add esp, 4
+	
+    iretd
+
+.spurious_slave:
+
+    mov al, 20h
+    out 020h, al
+
+    add esp, 4
+	
+    iretd
+
+.check_master:
+
+    mov al, 0Bh
+    out 020h, al
+
+    in al, 020h
+
+    test al, 80h
+    jz .spurious_master
+
+    mov al, 20h
+    out 020h, al
+
+    add esp, 4
+    iretd
+
+.spurious_master:
+
+    add esp, 4
+	
+    iretd
+
+
+
 	
 ; =============================================================================
+;
+; LER DATA E HORA DO RTC
+;
 ;
 ; Lê a hora atual do sistema no RTC. A hora do sistema no RTC estará gravada no 
 ; formato BCD (Binary Coded Decimal), que é uma forma de armazenar números decimais
 ; usando o sistema binário.
 ;
 ; Diferente do binário puro, onde os bits representam potências de 2 (1, 2, 4, 8,
-; ...), no BCD cada grupo de 4 bits (um nibble) representa exatamente um dígito 
+; 16, ...), no BCD cada grupo de 4 bits (um nibble) representa exatamente um dígito 
 ; decimal. Tomemos como exemplo o número 25. Em binário ele é representado como 
 ; 00011001 (16 (1*2^4) + 8 (1*2^3) + 1 (1*2^0) = 25). Em BCD o computador divide
 ; o byte ao meio. Os primeiros 4 bits guardam o "dígito 2" e os últimos 4 bits 
@@ -2024,6 +2197,7 @@ irq1_handler:
 ;
 ; Estes registradores são:
 ;
+;
 ;   Índice  Função       Intervalo BCD     Descrição
 ;   ------  ---------    -------------     ---------------------------------
 ;   0x00    Segundos     00 a 59           Segundos atuais.
@@ -2038,6 +2212,7 @@ irq1_handler:
 ;   0x08    Mês          01 a 12           Mês atual.
 ;
 ;   0x09    Ano          00 a 99           Os dois últimos dígitos do ano.
+;
 ;
 ; * Não existe um registrador para o século no RTC. Em alguns sistemas específicos 
 ;   é possível obter esta informação no índice 0x32. Como o QEMU implementa este
@@ -2824,6 +2999,9 @@ wait_enter:
 
 ; =============================================================================
 ;
+; CONVERTER BCD EM BINÁRIO
+;
+;
 ; Converte o número em formato BCD no registrador AL para o formato binário
 ; padrão.
 ;
@@ -2879,6 +3057,9 @@ bcd_to_bin:
 
 
 ; =============================================================================
+;
+; 
+; 
 ;
 ; Tratador de erro na configuração do HPET.
 ;
@@ -2975,20 +3156,20 @@ tsc_inv_fallback:
 ; │                                                                           │
 ; │                                                                           │
 ; │                                                                           │
-; │                                                     IDT                   │
-; │                                   0x1007FF ┌────────────────────┐ 0x7FF <─┘
-; │                                            │ Entrada 255        │         
-; │                                   0x1007F7 │────────────────────│ 0x7F7
-; │                                            ......................
-; │                                            ......................
-; │                                            ......................
-; │                                   0x100018 │────────────────────│ 0x17
-; │                                            │ Entrada 2          │
-; │                                   0x100010 │────────────────────│ 0x0F
-; │                                            │ Entrada 1          │
-; │                                   0x100008 │────────────────────│ 0x07
-; │                                            │ Entrada 0          │
-; └─────────────────────────────────> 0x100000 └────────────────────┘ 0x00
+; │                                                    IDT                    │
+; │                                0x001007FF ┌────────────────────┐ 0x07FF <─┘
+; │                                           │ Entrada 255        │         
+; │                                0x001007F7 │────────────────────│ 0x07F7
+; │                                           ......................
+; │                                           ......................
+; │                                           ......................
+; │                                0x00100017 │────────────────────│ 0x0017
+; │                                           │ Entrada 2          │
+; │                                0x0010000F │────────────────────│ 0x000F
+; │                                           │ Entrada 1          │
+; │                                0x00100007 │────────────────────│ 0x0007
+; │                                           │ Entrada 0          │
+; └──────────────────────────────> 0x00100000 └────────────────────┘ 0x0000
 ; 
 ;
 ; Os valores à esquerda do diagrama da tabela IDT representam o endereço linear
@@ -2999,8 +3180,8 @@ tsc_inv_fallback:
 ;
 ;
 ; Em Modo Protegido, cada entrada da IDT tem 8 bytes (64 bits). Os 64 bits de uma
-; entrada, que contém um interrupt gate que especifica o handler a ser executado, 
-; compõem os seguintes campos:
+; entrada, que descreve um gate que especifica o handler a ser executado, compõem 
+; os seguintes campos:
 ;
 ;
 ;     63                           47  46 44  43    39                32
@@ -3018,24 +3199,22 @@ tsc_inv_fallback:
 ;     31                              15                              0
 ;
 ;
-; ● Endereço do Handle (Offset)
+; ● Endereço do Handler (Offset)
 ;
-;   O endereço do handle, com 32 bits, é formado pela junção dos campos:
+;   O endereço do handler, com 32 bits, é formado pela junção dos campos:
 ;
 ;     > Offset 15:00 (Bits 0-15): Parte baixa do endereço do handler.
 ;
 ;     > Offset 31:16 (Bits 48-63): Parte alta do endereço do handler.
 ;
-;   Este endereço é o offset do handle no segmento apontado pelo Seletor de
+;   Este endereço é o offset do handler no segmento apontado pelo Seletor de
 ;   Segmento de Código no campo Selector (veja abaixo).
 ;
 ;
 ; ● Seletor do Segmento de Código (Selector)
 ;
 ;   O campo Selector (Bits 16-31) é o Seletor do Segmento de Código na GDT (ou 
-;   LDT) onde está localizado o handler (no caso deste projeto, 0x08). O endereço
-;   do handler não é um endereço linear armazenado na IDT. Ele é obtido combinando
-;   o segmento indicado pelo Selector com o Offset acima.
+;   LDT) onde está localizado o handler (no caso deste projeto, 0x08).
 ;
 ;
 ; ● Reservado (Reserved)
@@ -3050,7 +3229,7 @@ tsc_inv_fallback:
 ;   da IDT no modo protegido, os tipos possíveis são:
 ;
 ;   ┌───────┬──────────────────┬──────────────────────────────────────────────┐
-;   │ TYPE  │ TIPO             │ DESCRIÇÃO                                    │
+;   │ TIPO  │ NOME             │ DESCRIÇÃO                                    │
 ;   ╞═══════╪══════════════════╪══════════════════════════════════════════════╡
 ;   │ 0101b │ Task Gate        │ Realiza uma troca de tarefa usando uma TSS.  │
 ;   ├───────┼──────────────────┼──────────────────────────────────────────────┤
@@ -3070,8 +3249,8 @@ tsc_inv_fallback:
 ;
 ; ● S (Segment)
 ;
-;   Bit 44. Diferencia um descritor de sistema de um descritor de segmento de 
-;   código/dados:
+;   O bit S (Bit 44) diferencia um descritor de sistema de um descritor de segmento
+;   de código/dados:
 ;
 ;     > 0 → Descritor de sistema.
 ;
@@ -3097,7 +3276,7 @@ tsc_inv_fallback:
 ;
 ;   Para uma instrução INT n, o processador compara o CPL (Current Privilege
 ;   Level) do código que executa o INT com o DPL do gate. Para ivocação, o CPL 
-;   precisa ser menor ou igual ao DPL ao acessar um Interrupt/Trap gate:
+;   precisa ser menor ou igual ao DPL ao acessar um Interrupt gate/Trap gate:
 ;
 ;     CPL ≤ DPL
 ;
@@ -3111,59 +3290,20 @@ tsc_inv_fallback:
 ;
 ;     > DPL = 3 → CPL 0, 1, 2 ou 3 pode executar INT n.
 ;
-;   CPL indica em qual nível de privilégio (ring) o código que está executando
-;   atualmente está rodando.
-;
-;   Por exemplo, imagine que o processador esteja executando código de usuário:
-;
-;     CPL = 3
-;
-;   Esse código está no Ring 3.
-;
-;   Se ele executar:
-;
-;     int 80h
-;
-;   o processador vai consultar a entrada 80h da IDT e verificar o DPL do 
-;   Interrupt/Trap gate naquela entrada.
-;
-;   Se:
-;
-;     DPL = 3
-;     CPL = 3
-;
-;   então:
-;
-;     CPL ≤ DPL
-;     3 ≤ 3 → OK
-;
-;   A chamada é permitida.
-;
-;   Se o gate tiver:
-;
-;     DPL = 0
-;     CPL = 3
-;
-;   temos:
-;
-;     3 ≤ 0 → NÃO
-;
-;   e a instrução INT 80h não pode ser usada diretamente por código Ring 3.
-;
 ;
 ; ● P (Present)
 ;
-;   Bit 47. Indica se o gate está presente e é válido:
+;   O bit P (Bit 47) indica se o gate está presente e é válido:
 ;
 ;     > 0 → Gate não presente.
 ;
 ;     > 1 → Gate presente.
 ;
 ;   Para um Gate utilizável este bit deve ser 1. Se o processador tentar utilizar
-;   uma entrada cujo P = 0, gera a exceção: #NP — Segment Not Present.
+;   uma entrada cujo bit P = 0, gera a exceção: #NP — Segment Not Present.
 ;
 ;
-; ENTRADAS RESERVADAS
+; ENTRADAS RESERVADAS PELA ARQUITETURA X86
 ;
 ;
 ; A arquitetura x86 reserva as entradas de 0x00 (0) a 0x1F (31) da IDT para 
@@ -3197,7 +3337,7 @@ tsc_inv_fallback:
 ;
 ;
 ; ┌───────┬───────────────────────────────────────────────────────────────────┐
-; │ VETOR │ NOME                                                              │
+; │ VETOR │ NOME/DESCRIÇÃO                                                    │
 ; ╞═══════╪═══════════════════════════════════════════════════════════════════╡
 ; │ 0x00  │ #DE - Divide Error (Divisão por zero ou resultado de divisão      │
 ; │       │ inválido)                                                         │
@@ -3271,7 +3411,9 @@ tsc_inv_fallback:
 ;
 ; Ao entrar em Modo Protegido, deve-se remapear o PIC, que usava vetores para a 
 ; IVT (Interrupt Vector Table) em Modo Real, para apontar para as entradas a partir
-; da 32 da IDT.
+; da 32 da IDT. Caso contrário, ao lançar uma interrupção de relógio (IRQ0), por
+; exemplo, que na IVT era mapeada no vetor 0x08, na IDT, será tratado no vetor 
+; 0x08 como a exceção Double Fault (Falha dupla).
 ;
 ; O remapeamento do PIC neste código é feito da seguinte forma na rotina remap_pic:
 ;
@@ -3306,7 +3448,8 @@ tsc_inv_fallback:
 ; ● Entradas 32 a 39
 ;
 ;   As entradas de 32 (0x20) a 39 (0x27) serão destinadas para as interrupções 
-;   do PIC Mestre (PIC Master).
+;   do PIC Mestre (PIC Master). Va IVT, em Modo Real, o PIC Mestre ocupava os
+;   vetores de 0x08 a 0x0F.
 ;
 ;   As interrupções do PIC Mestre são as seguintes:
 ;
@@ -3329,12 +3472,13 @@ tsc_inv_fallback:
 ;   ├───────┼─────────────────────────────────────────────────────────────────┤
 ;   │ IRQ7  │ LPT1 / porta paralela (historicamente)                          │
 ;   └───────┴─────────────────────────────────────────────────────────────────┘
-;   
+;
 ;
 ; ● Entradas 40 a 47
 ;
 ;   As entradas de 40 (0x28) a 47 (0x2F) serão destinadas para as interrupções 
-;   do PIC Escravo (PIC Slave).
+;   do PIC Escravo (PIC Slave). Va IVT, em Modo Real, o PIC Escravo ocupava os
+;   vetores de 0x70 a 0x77.
 ;
 ;   As interrupções do PIC Escravo são as seguintes:
 ;
@@ -3359,46 +3503,72 @@ tsc_inv_fallback:
 ;   └───────┴─────────────────────────────────────────────────────────────────┘
 ;
 ;
+; Com o remapeamento, as interrupções do PIC Mestre e do PIC Escravo passam a 
+; ocupar os seguintes vetores do IDT:
+;
+;
+;                       PIC Mestre          PIC Escravo
+;                    ┌───────┬───────┐   ┌───────┬───────┐
+;                    │ IRQ   │ VETOR │   │ IRQ   │ VETOR │
+;                    ╞═══════╪═══════╡   ╞═══════╪═══════╡
+;                    │ IRQ0  │ 0x20  │   │ IRQ8  │ 0x28  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ1  │ 0x21  │   │ IRQ9  │ 0x29  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ2  │ 0x22  │   │ IRQ10 │ 0x2A  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ3  │ 0x23  │   │ IRQ11 │ 0x2B  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ4  │ 0x24  │   │ IRQ12 │ 0x2C  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ5  │ 0x25  │   │ IRQ13 │ 0x2D  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ6  │ 0x26  │   │ IRQ14 │ 0x2E  │
+;                    ├───────┼───────┤   ├───────┼───────┤
+;                    │ IRQ7  │ 0x27  │   │ IRQ15 │ 0x2F  │
+;                    └───────┴───────┘   └───────┴───────┘
+;                        
+;
 ; O diagrama abaixo representa como o PIC Mestre e o PIC Escravo estão conectados:
 ;
+;                 
+;                                  ┌────────────────────────┐
+;                  IRQ0 ──────────►│ IR0         PIC MESTRE │
+;                  IRQ1 ──────────►│ IR1                    │
+;                                  │ IR2 ◄────┐             │
+;                  IRQ3 ──────────►│ IR3      │             │
+;                  IRQ4 ──────────►│ IR4      │             │
+;                  IRQ5 ──────────►│ IR5      │             │
+;                  IRQ6 ──────────►│ IR6      │             │
+;                  IRQ7 ──────────►│ IR7      │             │
+;                                  └──────────│─────────────┘
+;                                             │          
+;                                             │ CASCATA  
+;                                             │         
+;                                  ┌──────────┴─────────────┐
+;                  IRQ8  ─────────►│ IR0        PIC ESCRAVO │
+;                  IRQ9  ─────────►│ IR1                    │
+;                  IRQ10 ─────────►│ IR2                    │
+;                  IRQ11 ─────────►│ IR3                    │
+;                  IRQ12 ─────────►│ IR4                    │
+;                  IRQ13 ─────────►│ IR5                    │
+;                  IRQ14 ─────────►│ IR6                    │
+;                  IRQ15 ─────────►│ IR7                    │
+;                                  └────────────────────────┘
 ;
-;                                ┌────────────────────────┐
-;                IRQ0 ──────────►│ IR0         PIC MESTRE │
-;                IRQ1 ──────────►│ IR1                    │
-;                                │ IR2 ◄────┐             │
-;                IRQ3 ──────────►│ IR3      │             │
-;                IRQ4 ──────────►│ IR4      │             │
-;                IRQ5 ──────────►│ IR5      │             │
-;                IRQ6 ──────────►│ IR6      │             │
-;                IRQ7 ──────────►│ IR7      │             │
-;                                └──────────│─────────────┘
-;                                           │          
-;                                           │ CASCADE  
-;                                           │         
-;                                ┌──────────┴─────────────┐
-;                IRQ8  ─────────►│ IR0        PIC ESCRAVO │
-;                IRQ9  ─────────►│ IR1                    │
-;                IRQ10 ─────────►│ IR2                    │
-;                IRQ11 ─────────►│ IR3                    │
-;                IRQ12 ─────────►│ IR4                    │
-;                IRQ13 ─────────►│ IR5                    │
-;                IRQ14 ─────────►│ IR6                    │
-;                IRQ15 ─────────►│ IR7                    │
-;                                └────────────────────────┘
 ;
-;
-; Optei por utilizar o PIC 8259 e não o moderno APIC (Advanced Programmable 
-; Interrupt Controller) como gerenciador de interrupções por questão de simplicidade
+; Optei por utilizar o PIC 8259 e não o APIC (Advanced Programmable Interrupt
+; Controller) como gerenciador de interrupções por questão de simplicidade
 ; do código. Como os computadores modernos mantém compatibilidade retroativa, 
 ; então vai funcionar no hardware destes também.
 ;
 ;
-; MAPEAMENTO DOS TRATADORES DE INTERRUPÇÕES (HANDLER) DE RELÓGIO E DE TECLADO
+; TRATADORES DE INTERRUPÇÕES (HANDLER) DE RELÓGIO E DE TECLADO
 ;
 ; 
 ; Diferentemente da IVT que é preconfigurada pelo BIOS no Modo Real, no Modo
-; Protegido é necessário mapear explicitamente cada entrada da IDT, pois não há
-; tratadores padrão de interrupção e de exceção. Neste código, na rotina init_idt, 
+; Protegido é necessário configurar explicitamente cada entrada da IDT, pois não 
+; há tratadores padrão de interrupção e de exceção. Neste código, na rotina init_idt, 
 ; fazemos esta configuração para as interrupções que o kernel vai monitorar. 
 ;
 ; Basicamente, o código da rotina init_idt configura o gate 32 para apontar para
@@ -3407,6 +3577,30 @@ tsc_inv_fallback:
 ; interrupção de IRQ0 é gerada pelo PIT (Programmable Interval Timer). Neste 
 ; código eu substituo o PIT pelo HPET, por questão de precisão, já que estou 
 ; implementando um relógio digital.
+;
+;
+;                     IDT
+;            │                    │
+;            │────────────────────│ 
+;            │                    │ 0x22
+;            │────────────────────│ 
+;            │ Gate 33 (IRQ1)     │ 0x21 → irq1_handler
+;            │────────────────────│ 
+;            │ Gate 32 (IRQ0)     │ 0x20 → irq0_handler
+;            │────────────────────│        
+;            ......................     
+;            ......................     
+;            ......................     
+;            │────────────────────│     
+;            │                    │ 0x03
+;            │────────────────────│     
+;            │                    │ 0x02
+;            │────────────────────│     
+;            │                    │ 0x01
+;            │────────────────────│     
+;            │                    │ 0x00
+;            └────────────────────┘     
+;
 ;
 ; As demais entradas estarão setadas com todos os bits em 0x0. Mais uma vez,
 ; não atribuirei tratadores de exceções às entradas 0x00 a 0x1F por simplificação

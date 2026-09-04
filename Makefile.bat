@@ -66,3 +66,8 @@ if %errorlevel% neq 0 echo Erro ao gerar %IMAGE% && pause && exit
 echo Iniciando QEMU...
 
 qemu-system-i386 -drive format=raw,file=%IMAGE% -machine pc,hpet=on -rtc base=localtime,clock=host -cpu max -device isa-debug-exit,iobase=0xf4,iosize=0x04
+
+::qemu-system-i386 -accel whpx -machine pc,hpet=on -rtc base=localtime,clock=host -cpu max,+invtsc -drive format=raw,file=%IMAGE% -device isa-debug-exit,iobase=0xf4,iosize=0x04
+
+
+::pause
