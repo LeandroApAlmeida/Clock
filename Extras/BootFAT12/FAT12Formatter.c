@@ -26,12 +26,11 @@
  No projeto, o autor desenvolve um bootloader que deve ser gravado numa imagem 
  de disco formatada como FAT12. Ao gravar esta imagem de disco em um dispositivo
  de armazenamento e dar boot com ele, o bootloader vai buscar um programa de teste 
- na mesma imagem, usando o nome do arquivo deste programa no sistema de arquivos
- FAT12 para localizá-lo no disco. Ao localizá-lo nas entradas do diretório raiz
- do FAT12, percorre as entradas na tabela FAT correpondentes ao arquivo e carrega 
- os clusters apontados por elas na memória. Após carregar o programa de teste, 
- entrega o controle para o mesmo, que vai mostrar uma frase na tela, e o conteúdo
- de alguns registradores que ele lê. 
+ usando o nome do arquivo deste programa no sistema de arquivos FAT12 para localizá-lo.
+ Ao localizar a entrada do arquivo no diretório raiz do FAT12, percorre as entradas 
+ na tabela FAT e carrega os clusters apontados por elas na memória. Após carregar
+ o programa de teste, entrega o controle para o mesmo, que vai mostrar uma frase 
+ na tela, e o conteúdo de alguns registradores que ele lê. 
  
  Para definir o nome do arquivo do programa de teste, o autor reserva um espaço
  no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Este
@@ -40,27 +39,27 @@
  é "TESTCODE.BIN" ("TESTCODEBIN" no formato 8:3 do FAT12).
  
  
-                          ┌───────────────────────────┐
-                          │                           │
-                          │                           │
-						  │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-                          │                           │
-						  │                           │
-						  │                           │
-						  │                           │
-                          │---------------------------│ ┬ Área reservada para
-                          │ Program File Name (11 B)  │ │ o nome do arquivo do 
-                          │---------------------------│ ┴ programa de teste 
-						  │                           │   (offsets 498 até 508).
-                          └───────────────────────────┘
+                        ┌────────────────────────────┐
+                        │                            │
+                        │                            │
+						│                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+                        │                            │
+						│                            │
+						│                            │
+						│                            │
+                        │----------------------------│ ┬ Área reservada para
+                        │ Program File Name (11 B)   │ │ o nome do arquivo do 
+                        │----------------------------│ ┴ programa de teste 
+						│                            │   (offsets 498 até 508).
+                        └────────────────────────────┘
  
   
  SISTEMA DE ARQUIVOS FAT12
@@ -84,27 +83,27 @@
  Um volume formatado como FAT12 é dividido em regiões fixas:
  
  
-                            ┌─────────────────────┐ ┬
-                            │ Boot Sector         │ │
-                            ├─────────────────────┤ │ Reserved Sectors
-						    │                     │ │
-                            ├─────────────────────┤ ┴
-                            │ FAT #1              │
-                            ├─────────────────────┤
-                            │ FAT #2 (cópia)      │
-                            ├─────────────────────┤
-                            │ Root Directory      │
-                            ├─────────────────────┤
-						    │                     │
-						    │                     │
-						    │                     │
-						    │                     │
-                            │ Data Area           │
-						    │                     │
-						    │                     │
-						    │                     │
-						    │                     │
-                            └─────────────────────┘
+                        ┌────────────────────────────┐ ┬
+                        │ Boot Sector                │ │
+                        ├────────────────────────────┤ │ Reserved Sectors
+						│                            │ │
+                        ├────────────────────────────┤ ┴
+                        │ FAT #1                     │
+                        ├────────────────────────────┤
+                        │ FAT #2 (backup)            │
+                        ├────────────────────────────┤
+                        │ Root Directory             │
+                        ├────────────────────────────┤
+						│                            │
+						│                            │
+						│                            │
+						│                            │
+                        │ Data Area                  │
+						│                            │
+						│                            │
+						│                            │
+						│                            │
+                        └────────────────────────────┘
 
  
  ● Boot Sector
@@ -117,31 +116,31 @@
    por este programa:
  
  
-                         ┌────────────────────────────┐
-                         │ Jump Instruction           │
-                         ├────────────────────────────┤
- 					     │ OEM Name                   │
-                         ├────────────────────────────┤
-                         │ BPB (BIOS Parameter Block) │
-                         ├────────────────────────────┤
-                         │ EBPB (Extended BPB)        │
-                         ├────────────────────────────┤
- 					     │                            │
- 					     │                            │
-						 │                            │
- 					     │                            │
-						 │                            │
-                         │ Bootloader Code            │
- 					     │                            │
-						 │                            │
-						 │                            │
- 					     │                            │
- 					     │                            │
-						 │----------------------------│
-                         │ Program File Name          │
-                         │----------------------------│
-                         │ Boot Signature             │
-                         └────────────────────────────┘
+                        ┌────────────────────────────┐
+                        │ Jump Instruction           │
+                        ├────────────────────────────┤
+ 					    │ OEM Name                   │
+                        ├────────────────────────────┤
+                        │ BPB (BIOS Parameter Block) │
+                        ├────────────────────────────┤
+                        │ EBPB (Extended BPB)        │
+                        ├────────────────────────────┤
+ 					    │                            │
+ 					    │                            │
+						│                            │
+ 					    │                            │
+						│                            │
+                        │ Bootloader Code            │
+ 					    │                            │
+						│                            │
+						│                            │
+ 					    │                            │
+ 					    │                            │
+						│----------------------------│
+                        │ Program File Name          │
+                        │----------------------------│
+                        │ Boot Signature             │
+                        └────────────────────────────┘
    
    
    Onde:
@@ -244,7 +243,7 @@
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
      │ 0x24   │ 2       │ Número do drive                  │ 0                │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
-     │ 0x26   │ 1       │ Assinatura (0x29/0x41)           │ 41               │
+     │ 0x26   │ 1       │ Assinatura (0x29/0x41)           │ 0x41             │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
      │ 0x27   │ 4       │ Número de série do volume        │ 0                │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
@@ -322,8 +321,8 @@
      > Sector (Setor): Representa o setor para a leitura/gravação.
 
 
-   O BIOS usa esses valores em chamadas da interrupção INT 13h (interrupção de
-   disco do BIOS).
+   O BIOS usa esses parâmetros para a interrupção INT 13h (interrupção de disco
+   do BIOS).
    
    O modo CHS exige que se conheça exatamente em que setor o programa do kernel 
    se inicia, e quantos setores ele ocupa no total, para parametrizar corretamente
@@ -396,113 +395,103 @@
    O diagrama abaixo representa o modo como isto é feito:
    
    
-                                    BIOS
-                                     │
-                                     ▼
+                                     BIOS
+                                      │
+                                      ▼
                          ┌─────────────────────────┐
                          │ Carrega Boot Sector no  │
-                	     │ endereço 0x7C00         │
+                	     │ endereço 0x7C00 da RAM  │
                          └─────────────────────────┘
-                                     │
-                                     ▼
+                                      │
+                                      ▼
                          ┌─────────────────────────┐
                          │ Bootloader inicia a     │
                          │ execução em Modo Real   │
                          └─────────────────────────┘
-						             │
-                                     ▼
+						              │             
+                                      ▼
                          ┌─────────────────────────┐
                          │ Se realoca do endereço  │
 						 │ 0x7C00 para o 0x600     │
                          └─────────────────────────┘
-						             │
-                                     ▼
+						              │
+                                      ▼
                          ┌─────────────────────────┐
-                         │ Salta para o código     │
-						 │ realocado               │
+                         │ Executa o código        │
+						 │ realocado em 0x600      │
                          └─────────────────────────┘
-                                     │
-                                     ▼
+                                      │
+                                      ▼
                          ┌─────────────────────────┐
                          │ Lê parâmetros do BPB:   │
                          │ Bytes/setor             │
                          │ Setores/FAT             │
-                         │ Entradas do root        │
+                         │ Entradas do Root Dir.   │
                          │ Setores/cluster         │
                          └─────────────────────────┘
-                                     │
-                                     ▼
+                                      │
+                                      ▼
                          ┌─────────────────────────┐
                          │ Calcula as posições de  │
                 		 │ Root Directory e FAT e  │
-						 │ carrega estas na memória│
+						 │ carrega estas estruturas│
+						 │ na memória              │
                          └─────────────────────────┘
-                                     │
-                                     ▼
-                         ┌─────────────────────────┐
-                         │ Lê Root Directory       │
-                         └─────────────────────────┘
-                                     │
-                                     ▼
+                                      │
+                                      ▼
                          ┌─────────────────────────┐
                          │ Procura pela entrada do │ 
 						 │ arquivo "TESTCODEBIN"   │
+						 │ em Root Directory       │
                          └─────────────────────────┘
-                		             │
-                                     │ Entrada encontrada?
-									 │
-                                     ├────────────────────────────┐
-                                     │                            │
-                                    SIM                          NÃO
-                                     │                            │
-                                     ▼                            ▼
+                		              │
+                                      │ Entrada encontrada?
+									  │
+                                      ├────────────────────────────┐
+                                      │                            │
+                                     SIM                          NÃO
+                                      │                            │
+                                      ▼                            ▼
                          ┌─────────────────────────┐   ┌──────────────────────┐
                          │ Lê o primeiro cluster   │   │ Erro: Bloqueia       │
-                         │ do arquivo              │   │                      │
+                         │ da cadeia               │   │                      │
                          └─────────────────────────┘   └──────────────────────┘
-                                     │
-                                     ▼
+                                      │            
+                                      ▼
                          ┌─────────────────────────┐
-        ┌──────────────▶ │ Converte cluster ⇒      │
-        │                │ Setor físico            │
+        ┌──────────────▶ │ Converte cluster em     │
+        │                │ endereço físico         │
         │                └─────────────────────────┘
-        │                            │
-        │                            ▼
+        │                             │
+        │                             ▼
         │                ┌─────────────────────────┐
         │                │ Lê setor(es) do cluster │
         │                │ para a memória RAM      │
         │                └─────────────────────────┘
-        │                            │
-        │                            ▼
+        │                             │
+        │                             ▼
         │                ┌─────────────────────────┐
         │                │ Consulta FAT para obter │
-        │                │ o próximo cluster       │
+        │                │ o próximo cluster da    │
+		│                │ cadeia                  │
         │                └─────────────────────────┘
-        │                            │
-        │                            │ Fim da cadeia?
-        │                            │
-        │              ┌─────────────┴────────────┐
-        │              │                          │
-        │             NÃO                        SIM
-        │              │                          │
-        │              ▼                          ▼
-        │   ┌──────────────────────┐   ┌──────────────────────┐
-        └───│ Lê o próximo cluster │   │ Arquivo totalmente   │
-            │                      │   │ carregado na memória │
-            └──────────────────────┘   └──────────────────────┘
-                                                  │
-                                                  ▼
-                                       ┌──────────────────────┐
-                                       │ Salta para o programa│
-								       │ de teste carregado do│
-									   │ arquivo em 0x7C00    │
-                                       └──────────────────────┘
+        │                             │
+        │                             │ Fim da cadeia?
+        │                             │
+        │               ┌─────────────┴─────────────┐
+        │               │                           │
+        │              NÃO                         SIM
+        │               │                           │
+        │               ▼                           ▼
+        │    ┌──────────────────────┐    ┌──────────────────────┐
+        └────│ Lê o próximo cluster │    │ Executa o programa   │
+             │ da cadeia            │    │ carregado na memória │
+             └──────────────────────┘    └──────────────────────┘
 
    
    Como visto no diagrama, o bootloader inicialmente realoca seu próprio código
-   para um endereço mais baixo na memória (0x600), para copiar o código do programa
-   de teste no endereço 0x7C00 que o BIOS o carregou originalmente. Provavelmente
-   o autor usou esta estratégia porque ela era comum em sistemas antigos.
+   para um endereço mais baixo na memória (0x600). Provavelmente o autor usou esta 
+   estratégia porque ela era comum em sistemas BIOS antigos.
    
    Após realocar seu próprio código, o bootloader localiza na FAT12 Root Directory
    e tabela FAT. Feito isso ele carrega estas estruturas na memória e procura a 
@@ -513,8 +502,8 @@
    
    Após carregar o programa no arquivo para a memória, o bootloader salta para a
    execução do mesmo. Este programa vai imprimir um cabeçalho e o conteúdo de 
-   alguns registradores na tela. Ele também é de autoria do mesmo dono do perfil 
-   no Github de onde baixei o código do bootloader.
+   alguns registradores na tela. Ele também é de autoria do mesmo autor do código
+   do bootloader.
    
    
    Program File Name:
@@ -523,28 +512,28 @@
    Espaço reservado pelo autor para o nome do arquivo do programa de teste. 
    Corresponde aos offsets de 498 a 508 do bootlader. No caso, o programa grava 
    o texto "TESTCODEBIN" neste espaço, que é o nome atribuído ao arquivo do programa
-   por este gerador de imagem de disco. 
-   
-   
+   por este gerador de imagem de disco.
+ 
+
    Boot Signature:
    ---------------
    
-   O setor de boot deve receber a assinatura 0x55AA (boot signature) nos dois 
-   últimos bytes para indicar que é um disco inicializável (disco de boot).
+   O setor de boot recebe a assinatura 0x55AA (Boot Signature) nos dois últimos 
+   bytes para indicar que é um disco inicializável (disco de boot).
    
       
- ● Reserved Sectors:
+ ● Reserved Sectors
 
 
    Setores reservados antes do início da primeira FAT. Se a BPB define como 1,
-   é reservado apenas o setor para o bootloader (e para a BPB). Assim, as tabelas
-   de alocação de arquivo começam logo depois desse setor (setor de boot). Este
-   parâmetro é definido no campo no offset 0x0E do BPB.
+   é reservado apenas o setor para o bootloader. Assim, as tabelas de alocação
+   de arquivo começam logo depois desse setor (setor de boot). Este parâmetro é 
+   definido no campo no offset 0x0E do BPB.
    
    Neste projeto é definido apenas 1 setor reservado.
 
 
- ● FAT #1 (File Allocation Table #1):
+ ● FAT #1 (File Allocation Table #1)
 
 
    A tabela FAT é basicamente um vetor de entradas que para cada cluster:
@@ -552,7 +541,7 @@
 	 
      > Indica o próximo cluster da cadeia.
 	 
-	 ou ...
+	   ou
 
      > Um marcador especial:
 	 
@@ -568,9 +557,6 @@
  
      9 × 512 = 4608 bytes
 
-
-   Entrada da Tabela FAT:
-   ---------------------- 
  
    Cada entrada na tabela FAT ocupa 12 bits. Como a tabela FAT deste projeto tem
    4608 bytes, então ela pode ter até:
@@ -608,10 +594,10 @@
 						  9 │                 │
    
    
-   Observe no diagrama que os bytes 0, 1 e 2 (à esquerda do diagrama) são usados
-   pelas entradas FAT[0] e FAT[1] (à direita do diagrama); os bytes 3, 4 e 5 são
-   usados pelas entradas FAT[2] e FAT[3]; os bytes 6, 7 e 8 são usados pelas
-   entradas FAT[4] e FAT[5], e assim, sucessivamente.
+   Observe no diagrama que os bytes nos offsets 0, 1 e 2 (à esquerda do diagrama) 
+   são usados pelas entradas FAT[0] e FAT[1] (à direita do diagrama); os bytes 3, 
+   4 e 5 são usados pelas entradas FAT[2] e FAT[3]; os bytes 6, 7 e 8 são usados
+   pelas entradas FAT[4] e FAT[5], e assim, sucessivamente.
    
    Via de regra, cada par de entradas da tabela FAT compartilham um mesmo byte 
    desta forma:
@@ -629,17 +615,20 @@
 									└──────▶ Nibble alto (4 bits)
    
    
+   Os bits A no diagrama correspondem à primeira entrada do par, e B à segunda 
+   entrada.
+   
    Cada entrada é uma referência para o próximo cluster da cadeia, por exemplo,
    seja a entrada:
-   
-   
+
+
               ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
               │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 0 │ 1 │
               └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
    
    
    O valor 000000000101 em binário representa o número 5. Isso significa que o
-   próximo cluster do arquivo é o cluster 5.
+   próximo cluster do arquivo, apontado naquela entrada, é o cluster 5.
    
    Uma entrada da FAT pode indicar também cluster livre, cluster defeituoso ou 
    fim da cadeia, de acordo com os valores na tabela abaixo:
@@ -662,25 +651,241 @@
          └───────────────┴──────────────────────────────────────────┘
    
    
+   Se, digamos, o cluster 0x20 (32) estiver com o valor 0xFF7 (cluster defeituoso),
+   significa que o cluster naquela mesma posição relativa na área de dados foi
+   marcado pelo sistema operacional como estando com defeito.
+   
    Desta tabela, já é possível deduzir que os clusters 0x000 e 0x001 são inacessíveis.
    Clusters válidos começam em 0x002 e vão até 0xFEF.
-      
+   
  
- ● FAT #2 (File Allocation Table #2):
- 
- 
-   Cópia de backup da FAT #1, para o caso de esta apresentar algum problema.
+ ● FAT #2 (File Allocation Table #2)
  
  
- ● Root Directory:
+   Cópia de backup da FAT #1, para o caso de FAT #1 apresentar problema. Na
+   prática, este é o único mecanismo de segurança contra perda de dados que é 
+   implementado pelo sistema de arquivos FAT12.
  
  
-   Estrutura do diretório principal.
+ ● Root Directory
  
+ 
+   A estrutura Root Directory é um vetor de entradas onde cada entrada descreve
+   um arquivo ou diretório que está na raiz do disco. No FAT12 a estrutura Root
+   Directory tem tamanho fixo, diferente do FAT16/FAT32. Neste projeto, Root
+   Directory terá 224 entradas, conforme informado no campo no offset 0x11 do BPB.
+   
+   Cada entrada em Root Directory tem 32 bytes, que compõem os seguintes campos:
+   
+   
+   ┌────────┬───────┬────────────────────────┬────────────────────────────────┐
+   │ OFFSET │ BYTES │ CAMPO                  │ DESCRIÇÃO                      │
+   ╞════════╪═══════╪════════════════════════╪════════════════════════════════╡
+   │ 0x00   │ 8     │ Nome                   │ Nome do arquivo (8:3)          │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x08   │ 3     │ Extensão               │ Extensão do arquivo (8:3)      │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x0B   │ 1     │ Atributos              │ Bits que definem atributos do  │
+   │        │       │                        │ arquivo/diretório              │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x0C   │ 1     │ Reservado              │ Reservado                      │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x0D   │ 1     │ Criação                │ Décimos de segundo da criação  │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x0E   │ 2     │ Hora de criação        │ Formato FAT, little-endian     │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x10   │ 2     │ Data de criação        │ Formato FAT, little-endian     │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x12   │ 2     │ Último acesso          │ Data do último acesso          │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x14   │ 2     │ Cluster inicial (High) │ Não usado no FAT12 (normalmente│
+   │        │       │                        │ 0x0000)                        │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x16   │ 2     │ Hora da última escrita │ Hora da última modificação     │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x18   │ 2     │ Data da última escrita │ Data da última modificação     │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x1A   │ 2     │ Cluster inicial (Low)  │ Primeiro cluster do arquivo    │
+   ├────────┼───────┼────────────────────────┼────────────────────────────────┤
+   │ 0x1C   │ 4     │ Tamanho do arquivo     │ Tamanho em bytes (0-diretório) │
+   └────────┴───────┴────────────────────────┴────────────────────────────────┘
 
 
- ● Data Area:
+   Se o primeiro byte (offset 0x00) do nome do arquivo estiver marcado como 0xE5, 
+   indica que o arquivo foi excluído.
+   
+   Por exemplo, a entrada do programa de teste deste projeto começa assim:
+
+   
+                       ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
+                       │54│45│53│54│43│4F│44│45│42│49│4E│
+                       ├──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┤
+                       │T │E │S │T │C │O │D │E │B │I │N │
+                       └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+
+
+   Se o arquivo fosse excluído, ela ficaria assim:
+   
+   
+                       ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
+                       │E5│45│53│54│43│4F│44│45│42│49│4E│
+                       ├──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┤
+                       │● │E │S │T │C │O │D │E │B │I │N │
+                       └│─┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+                        │
+						▼
+			     Marca de exclusão
+						
+	
+   O campo Cluster inicial (Low), offset 0x14, indica qual o primeiro cluster da
+   cadeia que contém o conteúdo do arquivo. Após ler este campo, o algoritmo 
+   consulta a tabela FAT para recuperar os demais clusters da cadeia, até encontrar 
+   um valor de EOF (End Of File) na entrada, indicando que chegou ao fim do arquivo.
+   
+   O campo atributos, offset 0x0B, pode ter os seguintes valores:
+   
+   
+                  ┌───────┬──────┬─────────────────────────────┐
+                  │ VALOR │ HEX  │ ATRIBUTO                    │
+                  ╞═══════╪══════╪═════════════════════════════╡
+                  │   0   │ 0x00 │ Normal/nenhum atributo      │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │   1   │ 0x01 │ Somente leitura (Read Only) │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │   2   │ 0x02 │ Oculto (Hidden)             │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │   4   │ 0x04 │ Sistema (System)            │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │   8   │ 0x08 │ Rótulo do volume (label)    │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │  16   │ 0x10 │ Subdiretório (Directory)    │
+				  ├───────┼──────┼─────────────────────────────┤
+                  │  32   │ 0x20 │ Arquivo (Archive)           │
+                  └───────┴──────┴─────────────────────────────┘
+
+
+	Alguns valores podem ser combinados. Por exemplo:
+
+
+      > 0x21 = 0x20 + 0x01 → Archive + Read Only
+
+      > 0x22 = Archive + Hidden
+
+
+    Há ainda combinações especiais. O valor 0x0F (0x01 + 0x02 + 0x04 + 0x08) 
+	é usado no FAT para identificar entradas VFAT de nome longo (Long File Name).
+
+
+ ● Data Area
  
+   Data Area é a região onde efetivamente os bytes dos arquivos e diretórios são
+   gravados no disco. Ela é divida em clusters, que são as unidades de alocação 
+   utilizadas pelo sistema de arquivos. Neste projeto, cada cluster ocupa 1 setor
+   (512 bytes), conforme informado no campo no offset 0x0D do BPB.
+   
+   
+                         ├────────────────────────────┤
+                         │ DATA AREA                  │
+                         │                            │
+                         │ ┌────────────┐             │
+                         │ │ Cluster 0  │ (reservado) │
+                         │ ├────────────┤             │
+                         │ │ Cluster 1  │ (reservado) │
+                         │ ├────────────┤             │
+                         │ │ Cluster 2  │             │
+                         │ ├────────────┤             │
+                         │ │ Cluster 3  │             │
+                         │ ├────────────┤             │
+                         │ │ Cluster 4  │             │
+                         │ ├────────────┤             │
+                         │ │ Cluster 5  │             │
+                         │ ├────────────┤             │
+                         │ │   ...      │             │
+                         │ └────────────┘             │
+                         └────────────────────────────┘
+ 
+ 
+   Conforme já mencionado, os clusters 0 e 1 são reservados. Os clusters válidos
+   começam em 0x002 e vão até 0xFEF.
+   
+   
+ Neste gerador de imagem de disco não serão implementadas todas as funções de
+ um sistema de arquivos FAT12. Não será implementado aqui opção de inserir novo
+ arquivo, excluir arquivo, renomear arquivo, etc. Será gravado apenas 1 arquivo
+ na estrutura do FAT12, que é o arquivo TESTCODE.BIN, que ocupa 9 setores de disco.
+ Como visto anteriormente, este contém o programa binário em modo real que imprime
+ um cabeçalho e o conteúdo de alguns registradores na tela.
+ 
+ A estrutura do FAT12 depois que o arquivo TESTCODE.BIN for gravado na imagem de
+ disco ficará desta forma:
+ 
+
+            Root Directory
+            ┌─────────────┬─────────────────┐
+            │ Arquivo     │ Cluster Inicial │
+            ╞═════════════╪═════════════════╡
+            │ TESTCODEBIN │ 2               │
+            └─────────────┴─/───────────────┘
+                           /
+              Tabela FAT  /
+              ┌───┬───┬──/┬───┬───┬───┬───┬───┬───┬───┬───┐
+              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │ Entrada (FAT[n])
+              ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
+              │ # │ # │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │EOF│ Próximo Cluster
+              └───┴───┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴───┘
+                         \   \   \   \   \   \   \   \
+              Data Area   \   \   \   \   \   \   \   \
+              ┌───┬───┬───┬\──┬\──┬\──┬\──┬\──┬\──┬\──┬\──┐
+              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │ Cluster
+              ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
+              │ # │ # │DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│
+              └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+			
+			
+ A ordem de leitura do arquivo pelo bootloader será a seguinte:
+ 
+ 
+   > Lê a entrada do arquivo em Root Directory.
+
+   > Encontra Cluster Inicial (cluster 2).
+   
+   > Calcula onde está o cluster 2 na Data Area.
+ 
+   > Carrega cluster 2.
+   
+   > Lê FAT[2], que aponta para cluster 3.
+   
+   > Carrega cluster 3.
+   
+   > Lê FAT[3], que aponta para cluster 4.
+   
+   > Carrega cluster 4.
+   
+   > Lê FAT[4], que aponta para cluster 5.
+   
+   > Carrega cluster 5.
+   
+   > Lê FAT[5], que aponta para cluster 6.
+   
+   > Carrega cluster 6.
+   
+   > Lê FAT[6], que aponta para cluster 7.
+   
+   > Carrega cluster 7.
+   
+   > Lê FAT[7], que aponta para cluster 8.
+   
+   > Carrega cluster 8.
+   
+   > Lê FAT[8], que aponta para cluster 9.
+   
+   > Carrega cluster 9.
+   
+   > Lê FAT[9], que aponta para cluster A.
+   
+   > Carrega cluster A.
+   
+   > Lê FAT[A], que aponta para EOF (End Of File).
  
 =============================================================================*/
 

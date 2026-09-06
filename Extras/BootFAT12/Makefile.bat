@@ -17,7 +17,7 @@ set TESTCODE_SOURCE=testcode.asm
 
 set BOOTLOADER_BINARY=%OUTPUT_DIR%\bootloader.bin
 
-set TESTCODE_BINARY=%OUTPUT_DIR%\TESTCODE.BIN
+set TESTCODE_BINARY=%OUTPUT_DIR%\testcode.bin
 
 set IMAGE=%OUTPUT_DIR%\bootloader.img
 
@@ -36,7 +36,9 @@ echo Montando "bootloader.asm"
 
 %NASM% -f bin -o %BOOTLOADER_BINARY% %BOOTLOADER_SOURCE%
 
-if %errorlevel% neq 0 echo Erro ao gerar %TESTCODE_BINARY% && pause && exit
+if %errorlevel% neq 0 echo Erro ao gerar %BOOTLOADER_BINARY% && pause && exit
+
+echo.
 
 
 :: ----------------------------------------------------------------------------
@@ -48,6 +50,8 @@ echo Montando "testcode.asm"
 %NASM% -f bin -o %TESTCODE_BINARY% %TESTCODE_SOURCE%
 
 if %errorlevel% neq 0 echo Erro ao gerar %TESTCODE_BINARY% && pause && exit
+
+echo.
 
 
 :: ----------------------------------------------------------------------------
@@ -67,6 +71,8 @@ if not exist %IMAGE% (
     pause
     exit
 )
+
+echo.
 
 
 :: ----------------------------------------------------------------------------
