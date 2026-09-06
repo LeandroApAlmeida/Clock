@@ -11,7 +11,8 @@
 #define ROOT_MAX_ENTRIES 224
 
 
-/*=============================================================================
+/*
+===============================================================================
 
  SOBRE O PROJETO
 
@@ -30,7 +31,7 @@
  Ao localizar a entrada do arquivo no diretório raiz do FAT12, percorre as entradas 
  na tabela FAT e carrega os clusters apontados por elas na memória. Após carregar
  o programa de teste, entrega o controle para o mesmo, que vai mostrar uma frase 
- na tela, e o conteúdo de alguns registradores que ele lê. 
+ na tela e o conteúdo de alguns registradores que ele lê. 
  
  Para definir o nome do arquivo do programa de teste, o autor reserva um espaço
  no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Este
@@ -243,7 +244,7 @@
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
      │ 0x24   │ 2       │ Número do drive                  │ 0                │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
-     │ 0x26   │ 1       │ Assinatura (0x29/0x41)           │ 0x41             │
+     │ 0x26   │ 1       │ Assinatura (29/41)               │ 41               │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
      │ 0x27   │ 4       │ Número de série do volume        │ 0                │
 	 ├────────┼─────────┼──────────────────────────────────┼──────────────────┤
@@ -264,7 +265,7 @@
      ├────────────────────────┼───────────────────────┼───────────────────────┤
      │ FAT #1                 │ 9    (1)              │ Setores 1 a 9         │
      ├────────────────────────┼───────────────────────┼───────────────────────┤
-     │ FAT #2 (cópia)         │ 9                     │ Setores 10 a 18       │
+     │ FAT #2                 │ 9                     │ Setores 10 a 18       │
      ├────────────────────────┼───────────────────────┼───────────────────────┤
      │ Root Directory         │ 14   (2)              │ Setores 19 a 32       │
      ├────────────────────────┼───────────────────────┼───────────────────────┤
@@ -305,11 +306,10 @@
    Bootloader Code:
    ----------------
    
-   No código do bootloader do projeto de relógio, como a imagem é criada em Raw 
-   Format, é utilizado o modo CHS (Cylinder-Head-Sector) para carregar o kernel 
-   na memória. O modo CHS era a forma antiga usada pelo BIOS para localizar setores
-   em discos rígidos e disquetes antes do uso generalizado do LBA (Logical Block
-   Addressing).
+   No código do projeto de relógio, como a imagem é criada em Raw Format, é utilizado
+   o modo CHS (Cylinder-Head-Sector) para carregar o kernel na memória. O modo 
+   CHS era a forma antiga usada pelo BIOS para localizar setores em discos rígidos 
+   e disquetes antes do uso generalizado do LBA (Logical Block Addressing).
    
    Os três componentes do modo CHS são:
 
@@ -426,7 +426,7 @@
                          │ Lê parâmetros do BPB:   │
                          │ Bytes/setor             │
                          │ Setores/FAT             │
-                         │ Entradas do Root Dir.   │
+                         │ Entradas em Root Dir.   │
                          │ Setores/cluster         │
                          └─────────────────────────┘
                                       │
@@ -496,14 +496,10 @@
    Após realocar seu próprio código, o bootloader localiza na FAT12 Root Directory
    e tabela FAT. Feito isso ele carrega estas estruturas na memória e procura a 
    entrada do arquivo do programa de teste em Root Directory, com base no nome 
-   gravado nos offsets 498 a 508 por este gerador de imagem de disco. Encontrado 
-   o arquivo, ele percorre o encadeamento na FAT #1 para carregar o conteúdo dos
-   clusters do arquivo na memória, na ordem da tabela FAT.
-   
-   Após carregar o programa no arquivo para a memória, o bootloader salta para a
-   execução do mesmo. Este programa vai imprimir um cabeçalho e o conteúdo de 
-   alguns registradores na tela. Ele também é de autoria do mesmo autor do código
-   do bootloader.
+   gravado nos offsets 498 a 508 do bootloader por este gerador de imagem de disco.
+   Encontrado o arquivo, ele percorre o encadeamento na FAT #1 para carregar o 
+   conteúdo dos clusters na memória. Após carregar o programa no arquivo para a 
+   memória, o bootloader salta (far jump) para a execução do mesmo.
    
    
    Program File Name:
@@ -539,9 +535,7 @@
    A tabela FAT é basicamente um vetor de entradas que para cada cluster:
 	 
 	 
-     > Indica o próximo cluster da cadeia.
-	 
-	   ou
+     > Indica o próximo cluster da cadeia, ou
 
      > Um marcador especial:
 	 
@@ -603,7 +597,7 @@
    desta forma:
    
 					
-                        Byte 0     Byte 1     Byte 2
+                        Byte n    Byte n+1   Byte n+2
                      ┌──────────┬──────────┬──────────┐
                      │ AAAAAAAA │ BBBBAAAA │ BBBBBBBB │
                      └──────────┴───│───│──┴──────────┘
@@ -615,16 +609,47 @@
 									└──────▶ Nibble alto (4 bits)
    
    
-   Os bits A no diagrama correspondem à primeira entrada do par (entrada par), e 
-   B à segunda entrada (entrada ímpar).
+   Os bits A no diagrama correspondem à primeira entrada do par (FAT[n]), e B à
+   segunda entrada (FAT[n+1]).
    
-   Cada entrada é uma referência para o próximo cluster da cadeia, por exemplo,
+   Os 3 bytes do par tem os seguintes bits:
+   
+   
+   	                                Byte n
+	               ┌───────────────────────────────────────┐
+	               │ 7    6    5    4    3    2    1    0  │
+	               ├───────────────────────────────────────┤
+	               │ A7   A6   A5   A4   A3   A2   A1   A0 │
+	               └───────────────────────────────────────┘
+   
+				   
+                                    Byte n+1
+                   ┌───────────────────┬───────────────────┐
+                   │ 7    6    5    4  │ 3    2    1    0  │
+                   ├───────────────────┼───────────────────┤
+                   │ B11  B10  B9   B8 │ A11  A10  A9   A8 │
+                   └───────────────────┴───────────────────┘
+                   ├─── Nibble alto ──┤ ├── Nibble baixo ──┤
+				
+				
+   	                                 Byte n+2
+	               ┌───────────────────────────────────────┐
+	               │ 7    6    5    4    3    2    1    0  │
+	               ├───────────────────────────────────────┤
+	               │ B7   B6   B5   B4   B3   B2   B1   B0 │
+	               └───────────────────────────────────────┘ 
+   
+   
+   Cada entrada é uma referência para o próximo cluster da cadeia. Por exemplo,
    seja a entrada:
 
 
-              ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
-              │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 0 │ 1 │
-              └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+                                    FAT[n]
+               ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+               │A11│A10│A9 │A8 │A7 │A6 │A5 │A4 │A3 │A2 │A1 │A0 │ 
+               ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+               │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 0 │ 1 │
+               └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
    
    
    O valor 000000000101 em binário representa o número 5. Isso significa que o
@@ -634,26 +659,26 @@
    fim da cadeia, de acordo com os valores na tabela abaixo:
    
    
-         ┌───────────────┬──────────────────────────────────────────┐
-         │VALOR          │ SIGNIFICADO                              │
-         ╞═══════════════╪══════════════════════════════════════════╡
-         │ 0x000         │ Cluster livre                            │
-         ├───────────────┼──────────────────────────────────────────┤
-         │ 0x001         │ Reservado                                │
-         ├───────────────┼──────────────────────────────────────────┤
-         │ 0x002-0xFEF   │ Número do próximo cluster da cadeia      │
-         ├───────────────┼──────────────────────────────────────────┤
-         │ 0xFF0-0xFF6   │ Reservado                                │
-         ├───────────────┼──────────────────────────────────────────┤
-         │ 0xFF7         │ Cluster defeituoso                       │
-         ├───────────────┼──────────────────────────────────────────┤
-         │ 0xFF8-0xFFF   │ Fim da cadeia                            │
-         └───────────────┴──────────────────────────────────────────┘
+          ┌───────────────┬──────────────────────────────────────────┐
+          │VALOR          │ SIGNIFICADO                              │
+          ╞═══════════════╪══════════════════════════════════════════╡
+          │ 0x000         │ Cluster livre                            │
+          ├───────────────┼──────────────────────────────────────────┤
+          │ 0x001         │ Reservado                                │
+          ├───────────────┼──────────────────────────────────────────┤
+          │ 0x002-0xFEF   │ Número do próximo cluster da cadeia      │
+          ├───────────────┼──────────────────────────────────────────┤
+          │ 0xFF0-0xFF6   │ Reservado                                │
+          ├───────────────┼──────────────────────────────────────────┤
+          │ 0xFF7         │ Cluster defeituoso                       │
+          ├───────────────┼──────────────────────────────────────────┤
+          │ 0xFF8-0xFFF   │ Fim da cadeia                            │
+          └───────────────┴──────────────────────────────────────────┘
    
    
    Se, digamos, o cluster 0x20 (32) estiver com o valor 0xFF7 (cluster defeituoso),
    significa que o cluster naquela mesma posição relativa na área de dados foi
-   marcado pelo sistema operacional como estando com defeito.
+   marcado pelo sistema operacional como estando com defeito, e deve ser evitado.
    
    Desta tabela, já é possível deduzir que os clusters 0x000 e 0x001 são inacessíveis.
    Clusters válidos começam em 0x002 e vão até 0xFEF.
@@ -820,28 +845,28 @@
  disco ficará desta forma:
  
 
-            Root Directory
-            ┌─────────────┬─────────────────┐
-            │ Arquivo     │ Cluster Inicial │
-            ╞═════════════╪═════════════════╡
-            │ TESTCODEBIN │ 2               │
-            └─────────────┴─/───────────────┘
+              Root Directory
+              ┌─────────────┬─────────────────┐
+              │ Arquivo     │ Cluster Inicial │
+              ╞═════════════╪═════════════════╡
+              │ TESTCODEBIN │ 2               │
+              └─────────────/─────────────────┘
                            /
               Tabela FAT  /
               ┌───┬───┬──/┬───┬───┬───┬───┬───┬───┬───┬───┐
-              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │ Entrada (FAT[n])
+              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Entrada (FAT[n])
               ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
               │ # │ # │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │EOF│ Próximo Cluster
               └───┴───┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴───┘
                          \   \   \   \   \   \   \   \
               Data Area   \   \   \   \   \   \   \   \
               ┌───┬───┬───┬\──┬\──┬\──┬\──┬\──┬\──┬\──┬\──┐
-              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │ Cluster
+              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Cluster
               ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
               │ # │ # │DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│
               └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
-			
-			
+
+
  A ordem de leitura do arquivo pelo bootloader será a seguinte:
  
  
@@ -881,32 +906,38 @@
    
    > Carrega cluster 9.
    
-   > Lê FAT[9], que aponta para cluster A.
+   > Lê FAT[9], que aponta para cluster 10.
    
-   > Carrega cluster A.
+   > Carrega cluster 10.
    
-   > Lê FAT[A], que aponta para EOF (End Of File).
+   > Lê FAT[10], que aponta para EOF (End Of File).
  
-=============================================================================*/
+===============================================================================
+*/
 
 
-/**
- * 
- * Esta função:
- * 
- *   > Localiza onde está a entrada FAT12 de um cluster.
- * 
- *   > Decide se ele é par ou ímpar.
- * 
- *   > Insere os 12 bits corretamente.
- * 
- *   > Preserva os bits do cluster vizinho.
- * 
- * @param disk Buffer do disco na memória.
- * 
- * @param fat_offset Offset da entrada na FAT.
- * 
- */
+
+
+/*
+===============================================================================
+ 
+  DEFINIR UMA ENTRADA DA FAT
+
+
+  Esta função:
+ 
+
+    > Localiza onde está a entrada FAT12 de um cluster.
+ 
+    > Decide se ele é par ou ímpar.
+ 
+    > Insere os 12 bits corretamente.
+ 
+    > Preserva os bits do cluster vizinho.
+ 
+===============================================================================
+*/
+ 
 void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int value) {
 	
 	// FAT12 usa entradas de 12 bits. Aplicando um and bit-a-bit com a máscara 
@@ -1005,6 +1036,8 @@ void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int va
 }
 
 
+
+
 int get_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster) {
 	
     uint32_t idx = fat_offset + (cluster * 3) / 2;
@@ -1022,6 +1055,8 @@ int get_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster) {
 }
 
 
+
+
 int find_free_cluster(unsigned char *disk, uint32_t fat_offset, int max_cluster) {
 	
     for (int c = 2; c <= max_cluster; c++) {
@@ -1037,6 +1072,8 @@ int find_free_cluster(unsigned char *disk, uint32_t fat_offset, int max_cluster)
 	return -1;
 
 }
+
+
 
 
 void format_83(char *out, const char *in) {
@@ -1062,6 +1099,8 @@ void format_83(char *out, const char *in) {
     }
 	
 }
+
+
 
 
 int set_root_entry(unsigned char *disk, uint32_t root_offset, const char *name,
@@ -1322,7 +1361,13 @@ const char *output_path) {
 }
 
 
+
+
 /*
+===============================================================================
+
+ ENTRADA DO PROGRAMA
+
 
  A função main espera 3 parâmetros:
 
@@ -1333,8 +1378,10 @@ const char *output_path) {
 
 	argv[3]: Path do arquivo de imagem de disco a ser gerado.
 	
- Se o terceiro parâmetro não for passado, nomeia o arquivo de imagem como "bootloader.img".
+ Se o terceiro parâmetro não for passado, nomeia o arquivo de imagem como 
+ "bootloader.img".
 
+===============================================================================
 */
 
 int main(int argc, char *argv[]) {
