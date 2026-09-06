@@ -615,8 +615,8 @@
 									└──────▶ Nibble alto (4 bits)
    
    
-   Os bits A no diagrama correspondem à primeira entrada do par, e B à segunda 
-   entrada.
+   Os bits A no diagrama correspondem à primeira entrada do par (entrada par), e 
+   B à segunda entrada (entrada ímpar).
    
    Cada entrada é uma referência para o próximo cluster da cadeia, por exemplo,
    seja a entrada:
