@@ -789,16 +789,16 @@
                   └───────┴──────┴─────────────────────────────┘
 
 
-	Alguns valores podem ser combinados. Por exemplo:
+   Alguns valores podem ser combinados. Por exemplo:
 
 
-      > 0x21 = 0x20 + 0x01 → Archive + Read Only
+     > 0x21 = 0x20 + 0x01 → Archive + Read Only
 
-      > 0x22 = Archive + Hidden
+     > 0x22 = Archive + Hidden
 
 
-    Há ainda combinações especiais. O valor 0x0F (0x01 + 0x02 + 0x04 + 0x08) 
-	é usado no FAT para identificar entradas VFAT de nome longo (Long File Name).
+   Há ainda combinações especiais. O valor 0x0F (0x01 + 0x02 + 0x04 + 0x08) 
+   é usado no FAT para identificar entradas VFAT de nome longo (Long File Name).
 
 
  ● Data Area
@@ -845,26 +845,26 @@
  disco ficará desta forma:
  
 
-              Root Directory
-              ┌─────────────┬─────────────────┐
-              │ Arquivo     │ Cluster Inicial │
-              ╞═════════════╪═════════════════╡
-              │ TESTCODEBIN │ 2               │
-              └─────────────/─────────────────┘
-                           /
-              Tabela FAT  /
-              ┌───┬───┬──/┬───┬───┬───┬───┬───┬───┬───┬───┐
-              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Entrada (FAT[n])
-              ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
-              │ # │ # │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │EOF│ Próximo Cluster
-              └───┴───┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴───┘
-                         \   \   \   \   \   \   \   \
-              Data Area   \   \   \   \   \   \   \   \
-              ┌───┬───┬───┬\──┬\──┬\──┬\──┬\──┬\──┬\──┬\──┐
-              │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Cluster
-              ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
-              │ # │ # │DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│
-              └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+            Root Directory
+            ┌─────────────┬─────────────────┐
+            │ Arquivo     │ Cluster Inicial │
+            ╞═════════════╪═════════════════╡
+            │ TESTCODEBIN │ 2               │
+            └─────────────/─────────────────┘
+                         /
+            Tabela FAT  /
+            ┌───┬───┬──/┬───┬───┬───┬───┬───┬───┬───┬───┐
+            │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Entrada (FAT[n])
+            ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
+            │ # │ # │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │ A │EOF│ Próximo Cluster
+            └───┴───┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴─\─┴───┘
+                       \   \   \   \   \   \   \   \
+            Data Area   \   \   \   \   \   \   \   \
+            ┌───┬───┬───┬\──┬\──┬\──┬\──┬\──┬\──┬\──┬\──┐
+            │ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │ Cluster
+            ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
+            │ # │ # │DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│DAT│
+            └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
 
 
  A ordem de leitura do arquivo pelo bootloader será a seguinte:
@@ -944,8 +944,8 @@ void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int va
 	// 0x0FFF (0000 1111 1111 1111), garante que apenas os 12 bits menos significativos
 	// serão usados, zerando quaisquer bits acima disso. 
 	//
-	//                     ANTES:  xxxx xxxx xxxx xxxx
-	//                     DEPOIS: 0000 xxxx xxxx xxxx
+	//     ANTES:  xxxx xxxx xxxx xxxx
+	//     DEPOIS: 0000 xxxx xxxx xxxx
 	//
 	// Exemplo 1: value = 0x1234
 	//    
@@ -968,7 +968,6 @@ void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int va
 	// 
 	//   > 2 entradas = 3 bytes
 	//
-	//     |--- Entrada1 ---|   |--- Entrada2 ---|
 	//     1111   1111   1111   1111   1111   1111
 	//     |- Byte1 -|   |- Byte2 -|   |- Byte3 -|
 	//
@@ -1001,12 +1000,14 @@ void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int va
     uint32_t idx = fat_offset + ((cluster * 3) / 2);
 
 	// FAT12 armazena duas entradas em 3 bytes:
+	//
 	// - cluster par usa os 12 bits "baixos"
 	// - cluster ímpar usa os 12 bits "altos"
 	
     if (cluster % 2 == 0) {
 		
-		// Caso PAR: 
+		// Caso PAR:
+		
 		// Os 8 bits menos significativos vão direto no primeiro byte.
         
 		disk[idx] = value & 0xFF;
@@ -1019,7 +1020,8 @@ void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int va
 		
     } else {
 		
-		// Caso ÍMPAR: 
+		// Caso ÍMPAR:
+		
 		// Aqui a entrada ocupa os 12 bits "altos" do par de bytes. 
 		// Os 4 bits menos significativos do valor vão para o nibble alto 
 		// do byte atual (idx). 
