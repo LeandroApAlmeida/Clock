@@ -597,7 +597,7 @@
    desta forma:
    
 					
-                        Byte n    Byte n+1   Byte n+2
+                        Byte1      Byte2      Byte3
                      ┌──────────┬──────────┬──────────┐
                      │ AAAAAAAA │ BBBBAAAA │ BBBBBBBB │
                      └──────────┴───│───│──┴──────────┘
@@ -609,13 +609,13 @@
 									└──────▶ Nibble alto (4 bits)
    
    
-   Os bits A no diagrama correspondem à primeira entrada do par (FAT[n]), e B à
-   segunda entrada (FAT[n+1]).
+   Os bits A no diagrama correspondem à primeira entrada do par, que vamos chamar 
+   de FAT[A], e B à segunda entrada, que vamos chamar de FAT[B].
    
    Os 3 bytes do par tem os seguintes bits:
    
    
-   	                                Byte n
+   	                                 Byte1
 	               ┌───────────────────────────────────────┐
 	               │ 7    6    5    4    3    2    1    0  │
 	               ├───────────────────────────────────────┤
@@ -623,7 +623,7 @@
 	               └───────────────────────────────────────┘
    
 				   
-                                    Byte n+1
+                                     Byte2
                    ┌───────────────────┬───────────────────┐
                    │ 7    6    5    4  │ 3    2    1    0  │
                    ├───────────────────┼───────────────────┤
@@ -632,7 +632,7 @@
                     ├── Nibble alto ──┤ ├── Nibble baixo ─┤
 				
 				
-   	                                 Byte n+2
+   	                                 Byte3
 	               ┌───────────────────────────────────────┐
 	               │ 7    6    5    4    3    2    1    0  │
 	               ├───────────────────────────────────────┤
@@ -640,20 +640,76 @@
 	               └───────────────────────────────────────┘ 
    
    
+   Para formar a entrada FAT[A] (entrada par), concatenamos os bits A nesta ordem:
+   
+   
+     FAT[A] = Nibble baixo | Byte1
+	 
+	 
+   Para formar a entrada FAT[B] (entrada ímpar), concatenamos os bits B nesta ordem:
+   
+   
+     FAT[B] = Byte3 | Nibble alto
+	 
+	 
+   Por exemplo, considere os bytes:
+   
+   
+     03 40 00 
+   
+   
+   Para concatenar os bits da entrada FAT[A], fazemos:
+   
+   
+       Byte1
+      /
+     03 4-0 00
+	       \
+		    Nibble baixo
+   
+   
+     FAT[A] = Nibble baixo | Byte1
+	 
+	 FAT[A] = 0x0 | 0x03
+	 
+	 FAT[A] = 0x003
+	 
+	 
+   Para concatenar os bits da entrada FAT[B], fazemos:
+   
+   
+              Byte3
+             /
+     03 4-0 00
+	     \
+		  Nibble alto
+   
+   
+     FAT[B] = Byte3 | Nibble alto
+	 
+	 FAT[B] = 0x00 | 0x4
+	 
+	 FAT[B] = 0x004
+   
+   
+   A ordem dos bits ao concatenar segue a regra do Little Endian. O byte menos
+   significativo vem primeiro na memória, seguido do mais significativo.
+   
    Cada entrada é uma referência para o próximo cluster da cadeia. Por exemplo,
    seja a entrada:
 
 
-                                    FAT[n]
+                                    FAT[A]
                ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
                │A11│A10│A9 │A8 │A7 │A6 │A5 │A4 │A3 │A2 │A1 │A0 │ 
                ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-               │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 0 │ 1 │
+               │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 1 │
                └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
    
    
-   O valor 000000000101 em binário representa o número 5. Isso significa que o
-   próximo cluster do arquivo, apontado naquela entrada, é o cluster 5.
+   O valor 000000000011 em binário representa o número 0x003 em hexadecimal. Isso 
+   significa que o próximo cluster do arquivo, apontado naquela entrada, é o 
+   cluster 3.
    
    Uma entrada da FAT pode indicar também cluster livre, cluster defeituoso ou 
    fim da cadeia, de acordo com os valores na tabela abaixo:
@@ -834,7 +890,8 @@
                          ├────────────────────────────┤
 						 │            ...             │
                          ├────────────────────────────┤
-						 
+						 │                            │
+						 │                            │
  
  
    Conforme já mencionado, os clusters 0 e 1 são reservados. Os clusters válidos
@@ -914,11 +971,15 @@
    
    > Carrega cluster 9.
    
-   > Lê FAT[9], que aponta para cluster 10.
+   > Lê FAT[9], que aponta para cluster A.
    
-   > Carrega cluster 10.
+   > Carrega cluster A.
    
-   > Lê FAT[10], que aponta para EOF (End Of File).
+   > Lê FAT[A], que aponta para cluster B.
+   
+   > Carrega cluster B.
+   
+   > Lê FAT[B], que aponta para EOF (End Of File).
  
 ===============================================================================
 */
@@ -946,11 +1007,12 @@
 ===============================================================================
 */
  
-void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, int value) {
+void set_fat_entry(unsigned char *disk, uint32_t fat_offset, int cluster, 
+int value) {
 	
 	// FAT12 usa entradas de 12 bits. Aplicando um and bit-a-bit com a máscara 
-	// 0x0FFF (0000 1111 1111 1111), garante que apenas os 12 bits menos significativos
-	// serão usados, zerando quaisquer bits acima disso. 
+	// 0x0FFF (0000 1111 1111 1111), garante que apenas os 12 bits menos 
+	// significativos serão usados, zerando quaisquer bits acima disso. 
 	//
 	//     ANTES:  xxxx xxxx xxxx xxxx
 	//     DEPOIS: 0000 xxxx xxxx xxxx
