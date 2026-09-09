@@ -21,7 +21,7 @@
  disponível em:
  
  
-       https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
+        https://github.com/kalehmann/SiBoLo/blob/master/bootloader.asm
  
  
  No projeto, o autor desenvolve um bootloader que deve ser gravado numa imagem 
@@ -30,12 +30,12 @@
  usando o nome do arquivo deste programa no sistema de arquivos FAT12 para localizá-lo.
  Ao localizar a entrada do arquivo no diretório raiz do FAT12, percorre as entradas 
  na tabela FAT e carrega os clusters apontados por elas na memória. Após carregar
- o programa de teste, entrega o controle para o mesmo, que vai mostrar uma frase 
- na tela e o conteúdo de alguns registradores que ele lê. 
+ o programa de teste, entrega o controle para o mesmo, que vai mostrar um cabeçalho 
+ e o conteúdo de alguns registradores que ele lê na tela. 
  
  Para definir o nome do arquivo do programa de teste, o autor reserva um espaço
- no bootloader para que o gerador da imagem de disco possa gravá-lo ali. Este
- espaço corresponde aos offsets de 498 à 508. Será nestes endereços que ele lerá 
+ no Setor de Boot para que o gerador da imagem de disco possa gravá-lo ali. Este
+ espaço corresponde aos offsets de 498 à 509. Será nestes endereços que ele lerá 
  o nome do arquivo para buscá-lo no disco FAT12. O nome que escolhi para o arquivo
  é "TESTCODE.BIN" ("TESTCODEBIN" no formato 8:3 do FAT12).
  
@@ -59,7 +59,7 @@
                         │----------------------------│ ┬ Área reservada para
                         │ Program File Name (11 B)   │ │ o nome do arquivo do 
                         │----------------------------│ ┴ programa de teste 
-						│                            │   (offsets 498 até 508).
+						│                            │   (offsets 498 até 509).
                         └────────────────────────────┘
  
   
@@ -91,7 +91,7 @@
                         ├────────────────────────────┤ ┴
                         │ FAT #1                     │
                         ├────────────────────────────┤
-                        │ FAT #2 (backup)            │
+                        │ FAT #2                     │
                         ├────────────────────────────┤
                         │ Root Directory             │
                         ├────────────────────────────┤
@@ -144,9 +144,6 @@
                         └────────────────────────────┘
    
    
-   Onde:
-
-
    Jump Instruction:
    -----------------
    
@@ -322,14 +319,14 @@
 
 
    O BIOS usa esses parâmetros para a interrupção INT 13h (interrupção de disco
-   do BIOS).
+   do BIOS) para carregar setores do disco para a memória.
    
    O modo CHS exige que se conheça exatamente em que setor o programa do kernel 
    se inicia, e quantos setores ele ocupa no total, para parametrizar corretamente
-   a interrupção INT 13h da BIOS.
+   a interrupção INT 13h do BIOS.
    
    No código-fonte do bootloader do relógio, o kernel é carregado desta forma na
-   rotina "load_kernel_image":
+   rotina "load_kernel_image" via modo CHS:
    
    
      mov ah, 0x02                ; Define o valor 0x02 em AH (função Read Sectors
@@ -388,9 +385,10 @@
    
    
    No código do bootloader deste projeto, o processo de carregamento do programa
-   de teste é muito diferente. O bootloader não precisará conhecer a localização
-   exata deste programa no disco. Ele lerá diretamente o arquivo a partir da 
-   estrutura do sistema de arquivos FAT12. 
+   de teste é diferente. O bootloader não precisará conhecer a localização exata
+   dos setores deste programa no disco. Ele lerá diretamente o arquivo a partir da 
+   estrutura do sistema de arquivos FAT12. Ele usa LBA/CHS apenas para carregar
+   um cluster do arquivo na memória.
    
    O diagrama abaixo representa o modo como isto é feito:
    
@@ -496,7 +494,7 @@
    Após realocar seu próprio código, o bootloader localiza na FAT12 Root Directory
    e tabela FAT. Feito isso ele carrega estas estruturas na memória e procura a 
    entrada do arquivo do programa de teste em Root Directory, com base no nome 
-   gravado nos offsets 498 a 508 do bootloader por este gerador de imagem de disco.
+   gravado nos offsets 498 a 509 do bootloader por este gerador de imagem de disco.
    Encontrado o arquivo, ele percorre o encadeamento na FAT #1 para carregar o 
    conteúdo dos clusters na memória. Após carregar o programa no arquivo para a 
    memória, o bootloader salta (far jump) para a execução do mesmo.
@@ -506,9 +504,11 @@
    ------------------
    
    Espaço reservado pelo autor para o nome do arquivo do programa de teste. 
-   Corresponde aos offsets de 498 a 508 do bootlader. No caso, o programa grava 
+   Corresponde aos offsets de 498 a 509 do bootlader. No caso, o programa grava 
    o texto "TESTCODEBIN" neste espaço, que é o nome atribuído ao arquivo do programa
-   por este gerador de imagem de disco.
+   por este gerador de imagem de disco. Como a string deve ser terminada em zero,
+   "TESTCODEBIN" deve ser gravado nos offsets de 498 a 508. O offset 509 tem o 
+   zero de terminação da string. 
  
 
    Boot Signature:
@@ -517,16 +517,15 @@
    O setor de boot recebe a assinatura 0x55AA (Boot Signature) nos dois últimos 
    bytes para indicar que é um disco inicializável (disco de boot).
    
-      
+  
  ● Reserved Sectors
 
 
-   Setores reservados antes do início da primeira FAT. Se a BPB define como 1,
-   é reservado apenas o setor para o bootloader. Assim, as tabelas de alocação
-   de arquivo começam logo depois desse setor (setor de boot). Este parâmetro é 
-   definido no campo no offset 0x0E do BPB.
+   Setores reservados antes do início da primeira FAT. Se o BPB define como 1,
+   é reservado apenas o setor de boot. Assim, a tabela FAT #1 começa logo depois
+   desse setor. Este parâmetro é definido no campo no offset 0x0E do BPB. 
    
-   Neste projeto é definido apenas 1 setor reservado.
+   Neste projeto é definido apenas 1 setor reservado (setor de boot).
 
 
  ● FAT #1 (File Allocation Table #1)
@@ -588,13 +587,13 @@
 						  9 │                 │
    
    
-   Observe no diagrama que os bytes nos offsets 0, 1 e 2 (à esquerda do diagrama) 
-   são usados pelas entradas FAT[0] e FAT[1] (à direita do diagrama); os bytes 3, 
-   4 e 5 são usados pelas entradas FAT[2] e FAT[3]; os bytes 6, 7 e 8 são usados
-   pelas entradas FAT[4] e FAT[5], e assim, sucessivamente.
+   Observe que os bytes nos offsets 0, 1 e 2 (à esquerda do diagrama) são usados
+   pelas entradas FAT[0] e FAT[1] (à direita do diagrama); os bytes 3, 4 e 5 são 
+   usados pelas entradas FAT[2] e FAT[3]; os bytes 6, 7 e 8 são usados pelas entradas
+   FAT[4] e FAT[5], e assim, sucessivamente.
    
    Via de regra, cada par de entradas da tabela FAT compartilham um mesmo byte 
-   desta forma:
+   (Byte2) desta forma:
    
 					
                         Byte1      Byte2      Byte3
@@ -604,21 +603,21 @@
                         8 bits      │   │     8 bits
 		           				    │   │
 									│   │
-									│   └──▶ Nibble baixo (4 bits)
+									│   └──▶ 4 bits (Nibble baixo)
 									│
-									└──────▶ Nibble alto (4 bits)
+									└──────▶ 4 bits (Nibble alto)
    
    
    Os bits A no diagrama correspondem à primeira entrada do par, que vamos chamar 
    de FAT[A], e B à segunda entrada, que vamos chamar de FAT[B].
    
-   Os 3 bytes do par tem os seguintes bits:
+   Os 3 bytes do par tem os seguintes bits, nesta ordem:
    
    
    	                                 Byte1
 	               ┌───────────────────────────────────────┐
 	               │ 7    6    5    4    3    2    1    0  │
-	               ├───────────────────────────────────────┤
+	               ╞═══════════════════════════════════════╡
 	               │ A7   A6   A5   A4   A3   A2   A1   A0 │
 	               └───────────────────────────────────────┘
    
@@ -626,7 +625,7 @@
                                      Byte2
                    ┌───────────────────┬───────────────────┐
                    │ 7    6    5    4  │ 3    2    1    0  │
-                   ├───────────────────┼───────────────────┤
+                   ╞═══════════════════╪═══════════════════╡
                    │ B3   B2   B1   B0 │ A11  A10  A9   A8 │
                    └───────────────────┴───────────────────┘
                     ├── Nibble alto ──┤ ├── Nibble baixo ─┤
@@ -635,18 +634,20 @@
    	                                 Byte3
 	               ┌───────────────────────────────────────┐
 	               │ 7    6    5    4    3    2    1    0  │
-	               ├───────────────────────────────────────┤
+	               ╞═══════════════════════════════════════╡
 	               │ B11  B10  B9   B8   B7   B6   B5   B4 │
 	               └───────────────────────────────────────┘ 
    
    
-   Para formar a entrada FAT[A] (entrada par), concatenamos os bits A nesta ordem:
+   Para formar os 12 bits da entrada FAT[A] (entrada par), concatenamos nesta 
+   ordem:
    
    
      FAT[A] = Nibble baixo | Byte1
 	 
 	 
-   Para formar a entrada FAT[B] (entrada ímpar), concatenamos os bits B nesta ordem:
+   Para formar os 12 bits da entrada FAT[B] (entrada ímpar), concatenamos nesta
+   ordem:
    
    
      FAT[B] = Byte3 | Nibble alto
@@ -655,10 +656,16 @@
    Por exemplo, considere os bytes:
    
    
-     03 40 00 
+     ┌───────┬───────┬───────┐
+     │ Byte1 │ Byte2 │ Byte3 │
+     ╞═══════╪═══════╪═══════╡
+     │ 0x03  │ 0x40  │ 0x00  │
+     └───────┴───────┴───────┘
    
    
-   Para concatenar os bits da entrada FAT[A], fazemos:
+   que formam as entradas FAT[A] e FAT[B],
+   
+   Para obter os 12 bits da entrada FAT[A], fazemos:
    
    
        Byte1
@@ -675,7 +682,7 @@
 	 FAT[A] = 0x003
 	 
 	 
-   Para concatenar os bits da entrada FAT[B], fazemos:
+   Para obter os 12 bits da entrada FAT[B], fazemos:
    
    
               Byte3
@@ -692,24 +699,30 @@
 	 FAT[B] = 0x004
    
    
-   A ordem dos bits ao concatenar segue a regra do Little Endian. O byte menos
+   A concatenação dos bits já está no padrão Little Endian, em que o byte menos
    significativo vem primeiro na memória, seguido do mais significativo.
    
-   Cada entrada é uma referência para o próximo cluster da cadeia. Por exemplo,
-   seja a entrada:
+   Em binário, a entradas FAT[A] e FAT[B] ficam com os seguintes valores:
 
 
                                     FAT[A]
                ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
                │A11│A10│A9 │A8 │A7 │A6 │A5 │A4 │A3 │A2 │A1 │A0 │ 
-               ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+               ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
                │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 1 │
+               └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+			   
+			                        FAT[B]
+               ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+               │B11│B10│B9 │B8 │B7 │B6 │B5 │B4 │B3 │B2 │B1 │B0 │ 
+               ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
+               │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │ 0 │ 0 │
                └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
    
    
-   O valor 000000000011 em binário representa o número 0x003 em hexadecimal. Isso 
-   significa que o próximo cluster do arquivo, apontado naquela entrada, é o 
-   cluster 3.
+   Isso significa que a entrada FAT[A] aponta para o cluster 3 em Data Area, e
+   FAT[B] para o cluster 4. Neste caso, as entradas FAT[A] e FAT[B] estão apontando
+   para o próximo cluster na cadeia do arquivo.
    
    Uma entrada da FAT pode indicar também cluster livre, cluster defeituoso ou 
    fim da cadeia, de acordo com os valores na tabela abaixo:
@@ -733,8 +746,8 @@
    
    
    Se, digamos, o cluster 0x20 (32) estiver com o valor 0xFF7 (cluster defeituoso),
-   significa que o cluster naquela mesma posição relativa na área de dados foi
-   marcado pelo sistema operacional como estando com defeito, e deve ser evitado.
+   significa que o cluster naquela mesma posição relativa em Data Area foi marcado
+   pelo sistema operacional como estando com defeito, e deve ser evitado.
    
    Desta tabela, já é possível deduzir que os clusters 0x000 e 0x001 são inacessíveis.
    Clusters válidos começam em 0x002 e vão até 0xFEF.
@@ -756,7 +769,8 @@
    Directory tem tamanho fixo, diferente do FAT16/FAT32. Neste projeto, Root
    Directory terá 224 entradas, conforme informado no campo no offset 0x11 do BPB.
    
-   Cada entrada em Root Directory tem 32 bytes, que compõem os seguintes campos:
+   Cada entrada em Root Directory tem 32 bytes, que compõem os seguintes campos
+   de metadados do arquivo/diretório:
    
    
    ┌────────┬───────┬────────────────────────┬────────────────────────────────┐
@@ -795,22 +809,23 @@
    Se o primeiro byte (offset 0x00) do nome do arquivo estiver marcado como 0xE5, 
    indica que o arquivo foi excluído.
    
-   Por exemplo, a entrada do programa de teste deste projeto começa assim:
+   Por exemplo, o nome do arquivo do programa de teste deste projeto tem estes
+   bytes:
 
    
                        ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
                        │54│45│53│54│43│4F│44│45│42│49│4E│
-                       ├──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┤
+                       ╞══╪══╪══╪══╪══╪══╪══╪══╪══╪══╪══╡
                        │T │E │S │T │C │O │D │E │B │I │N │
                        └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
 
 
-   Se o arquivo fosse excluído, ela ficaria assim:
+   Se o arquivo fosse excluído, ele ficaria assim:
    
    
                        ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
                        │E5│45│53│54│43│4F│44│45│42│49│4E│
-                       ├──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┤
+                       ╞══╪══╪══╪══╪══╪══╪══╪══╪══╪══╪══╡
                        │● │E │S │T │C │O │D │E │B │I │N │
                        └│─┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
                         │
@@ -818,7 +833,7 @@
 			     Marca de exclusão
 						
 	
-   O campo Cluster inicial (Low), offset 0x14, indica qual o primeiro cluster da
+   O campo Cluster inicial (Low), offset 0x1A, indica qual o primeiro cluster da
    cadeia que contém o conteúdo do arquivo. Após ler este campo, o algoritmo 
    consulta a tabela FAT para recuperar os demais clusters da cadeia, até encontrar 
    um valor de EOF (End Of File) na entrada, indicando que chegou ao fim do arquivo.
@@ -871,7 +886,7 @@
 						 │                            │
                          │                            │						
                          ├────────────────────────────┤
-                         │            ...             │
+                         │         Cluster C          │
                          ├────────────────────────────┤
                          │         Cluster B          │
                          ├────────────────────────────┤
@@ -901,10 +916,10 @@
    
    
  Neste gerador de imagem de disco não serão implementadas todas as funções de
- um sistema de arquivos FAT12. Não será implementado aqui opção de inserir novo
- arquivo, excluir arquivo, renomear arquivo, etc. Será gravado apenas 1 arquivo
- na estrutura do FAT12, que é o arquivo TESTCODE.BIN, que ocupa 9 setores de disco.
- Como visto anteriormente, este contém o programa binário em modo real que imprime
+ um sistema de arquivos FAT12, ou seja, não será implementado aqui opção de inserir
+ novo arquivo, excluir arquivo, renomear arquivo, etc. Será gravado apenas 1 arquivo
+ na estrutura do FAT12, que é o arquivo TESTCODE.BIN, que ocupa 10 clusters. Como
+ visto anteriormente, este arquivo contém o programa binário em modo real que imprime
  um cabeçalho e o conteúdo de alguns registradores na tela.
  
  A estrutura do FAT12 depois que o arquivo TESTCODE.BIN for gravado na imagem de
@@ -981,6 +996,11 @@
    > Carrega cluster B.
    
    > Lê FAT[B], que aponta para EOF (End Of File).
+   
+   
+ Após terminar de ler o arquivo, que o programa de teste está completamente
+ carregado na memória, o bootloader realiza um far jump e entrega o controle
+ do computador para o mesmo.
  
 ===============================================================================
 */
