@@ -1,16 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <time.h>
-#include <locale.h>
-
-#define SECTOR_SIZE 512
-#define DISK_SIZE (1440 * 1024)
-#define FAT_END 0xFFF
-#define ROOT_MAX_ENTRIES 224
-
-
 /*
 ===============================================================================
 
@@ -111,7 +98,7 @@
  
  
    Primeiro setor de um volume ou partição, com 512 bytes. Pode ser Volume Boot 
-   Record (VBR) ou MBR (Master Boot Record), dependendo do tipo de disco.
+   Record (VBR) ou Master Boot Record (MBR), dependendo do tipo de disco.
  
    O diagrama abaixo representa como é o setor de boot da imagem de disco gerada
    por este programa:
@@ -1004,6 +991,25 @@
  
 ===============================================================================
 */
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+#include <locale.h>
+
+
+#define SECTOR_SIZE 512
+
+#define DISK_SIZE (1440 * 1024)
+
+#define FAT_END 0xFFF
+
+#define ROOT_MAX_ENTRIES 224
 
 
 
